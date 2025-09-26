@@ -11,10 +11,13 @@ import (
 	mapper "jaqen/pkgs"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	nativeDialog "github.com/sqweek/dialog"
@@ -40,6 +43,11 @@ type JaqenGUI struct {
 	allowDuplicateCheck *widget.Check
 	mappingOverrideList *widget.List
 	mappingOverrides   map[string]string
+	
+	// Image preview
+	imagePreview1      *widget.Card
+	imagePreview2      *widget.Card
+	imagePreview3      *widget.Card
 	
 	config             internal.JaqenConfig
 }
@@ -67,15 +75,29 @@ func (g *JaqenGUI) loadConfig() {
 		config, err := internal.ReadConfig(configPath)
 		if err == nil {
 			g.config = config
-			g.applyConfigToGUI()
+			// Only apply config to GUI if widgets exist
+			if g.xmlPathEntry != nil {
+				g.applyConfigToGUI()
+			}
+		} else {
+			// If config file exists but can't be read, create default but don't overwrite existing values
+			g.createDefaultConfig()
 		}
 	} else {
-		// Create default config
+		// Create default config only if no config file exists
 		g.createDefaultConfig()
 	}
 }
 
 func (g *JaqenGUI) createDefaultConfig() {
+	// Preserve existing mapping overrides if they exist
+	var mappingOverride map[string]string
+	if g.config.MappingOverride != nil {
+		mappingOverride = *g.config.MappingOverride
+	} else {
+		mappingOverride = make(map[string]string)
+	}
+	
 	g.config = internal.JaqenConfig{
 		Preserve:        &[]bool{true}[0], // Default to true
 		XMLPath:         &[]string{internal.DefaultXMLPath}[0],
@@ -83,7 +105,7 @@ func (g *JaqenGUI) createDefaultConfig() {
 		IMGPath:         &[]string{internal.DefaultImagesPath}[0],
 		FMVersion:       &[]string{internal.DefaultFMVersion}[0],
 		AllowDuplicate:  &[]bool{true}[0], // Default to true
-		MappingOverride: &map[string]string{},
+		MappingOverride: &mappingOverride,
 	}
 	g.mappingOverrides = make(map[string]string)
 }
@@ -96,20 +118,42 @@ func (g *JaqenGUI) applyConfigToGUI() {
 	if g.allowDuplicateCheck != nil && g.config.AllowDuplicate != nil {
 		g.allowDuplicateCheck.SetChecked(*g.config.AllowDuplicate)
 	}
-	if g.fmVersionSelect != nil && g.config.FMVersion != nil {
+	if g.fmVersionSelect != nil && g.config.FMVersion != nil && *g.config.FMVersion != "" {
 		g.fmVersionSelect.SetSelected(*g.config.FMVersion)
 	}
-	if g.xmlPathEntry != nil && g.config.XMLPath != nil {
+	if g.xmlPathEntry != nil && g.config.XMLPath != nil && *g.config.XMLPath != "" {
 		g.xmlPathEntry.SetText(*g.config.XMLPath)
 	}
-	if g.rtfPathEntry != nil && g.config.RTFPath != nil {
+	if g.rtfPathEntry != nil && g.config.RTFPath != nil && *g.config.RTFPath != "" {
 		g.rtfPathEntry.SetText(*g.config.RTFPath)
 	}
-	if g.imgDirEntry != nil && g.config.IMGPath != nil {
+	if g.imgDirEntry != nil && g.config.IMGPath != nil && *g.config.IMGPath != "" {
 		g.imgDirEntry.SetText(*g.config.IMGPath)
 	}
 	if g.config.MappingOverride != nil {
-		g.mappingOverrides = *g.config.MappingOverride
+		// Copy the mapping overrides from config to GUI map
+		g.mappingOverrides = make(map[string]string)
+		for k, v := range *g.config.MappingOverride {
+			g.mappingOverrides[k] = v
+		}
+		g.updateMappingOverrideList()
+	}
+}
+
+func (g *JaqenGUI) applyConfigToSettings() {
+	// Apply config specifically to settings widgets
+	if g.preserveCheck != nil && g.config.Preserve != nil {
+		g.preserveCheck.SetChecked(*g.config.Preserve)
+	}
+	if g.allowDuplicateCheck != nil && g.config.AllowDuplicate != nil {
+		g.allowDuplicateCheck.SetChecked(*g.config.AllowDuplicate)
+	}
+	if g.config.MappingOverride != nil {
+		// Copy the mapping overrides from config to GUI map
+		g.mappingOverrides = make(map[string]string)
+		for k, v := range *g.config.MappingOverride {
+			g.mappingOverrides[k] = v
+		}
 		g.updateMappingOverrideList()
 	}
 }
@@ -126,19 +170,27 @@ func (g *JaqenGUI) saveConfig() {
 	}
 	if g.fmVersionSelect != nil {
 		fmVersion := g.fmVersionSelect.Selected
-		g.config.FMVersion = &fmVersion
+		if fmVersion != "" {
+			g.config.FMVersion = &fmVersion
+		}
 	}
 	if g.xmlPathEntry != nil {
 		xmlPath := g.xmlPathEntry.Text
-		g.config.XMLPath = &xmlPath
+		if xmlPath != "" {
+			g.config.XMLPath = &xmlPath
+		}
 	}
 	if g.rtfPathEntry != nil {
 		rtfPath := g.rtfPathEntry.Text
-		g.config.RTFPath = &rtfPath
+		if rtfPath != "" {
+			g.config.RTFPath = &rtfPath
+		}
 	}
 	if g.imgDirEntry != nil {
 		imgPath := g.imgDirEntry.Text
-		g.config.IMGPath = &imgPath
+		if imgPath != "" {
+			g.config.IMGPath = &imgPath
+		}
 	}
 	g.config.MappingOverride = &g.mappingOverrides
 
@@ -269,6 +321,15 @@ func (g *JaqenGUI) openSettings() {
 	g.settingsWindow = g.app.NewWindow("Settings")
 	g.settingsWindow.Resize(fyne.NewSize(500, 400))
 	g.settingsWindow.SetContent(g.createSettingsContent())
+	
+	// Apply config to settings widgets after they're created
+	g.applyConfigToSettings()
+	
+	// Close settings window when main window closes
+	g.settingsWindow.SetCloseIntercept(func() {
+		g.settingsWindow.Hide()
+	})
+	
 	g.settingsWindow.Show()
 }
 
@@ -301,6 +362,95 @@ func (g *JaqenGUI) updateMappingOverrideList() {
 	}
 }
 
+func (g *JaqenGUI) findRandomImages(imgDir string) []string {
+	var imageFiles []string
+	
+	// Supported image extensions
+	extensions := []string{".png", ".jpg", ".jpeg", ".gif", ".bmp"}
+	
+	// Walk through the directory and subdirectories
+	err := filepath.Walk(imgDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Skip files we can't access
+		}
+		
+		if !info.IsDir() {
+			ext := strings.ToLower(filepath.Ext(path))
+			for _, supportedExt := range extensions {
+				if ext == supportedExt {
+					imageFiles = append(imageFiles, path)
+					break
+				}
+			}
+		}
+		return nil
+	})
+	
+	if err != nil {
+		log.Printf("Error walking directory: %v", err)
+		return []string{}
+	}
+	
+	// Shuffle the images and return up to 3
+	if len(imageFiles) == 0 {
+		return []string{}
+	}
+	
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(imageFiles), func(i, j int) {
+		imageFiles[i], imageFiles[j] = imageFiles[j], imageFiles[i]
+	})
+	
+	// Return up to 3 images
+	if len(imageFiles) > 3 {
+		return imageFiles[:3]
+	}
+	return imageFiles
+}
+
+func (g *JaqenGUI) updateImagePreviews(imgDir string) {
+	if imgDir == "" {
+		// Clear previews if no directory selected
+		if g.imagePreview1 != nil {
+			g.imagePreview1.SetContent(widget.NewLabel("No image selected"))
+		}
+		if g.imagePreview2 != nil {
+			g.imagePreview2.SetContent(widget.NewLabel("No image selected"))
+		}
+		if g.imagePreview3 != nil {
+			g.imagePreview3.SetContent(widget.NewLabel("No image selected"))
+		}
+		return
+	}
+	
+	// Find random images
+	images := g.findRandomImages(imgDir)
+	
+	// Update preview cards
+	previews := []*widget.Card{g.imagePreview1, g.imagePreview2, g.imagePreview3}
+	
+	for i, preview := range previews {
+		if preview != nil {
+			if i < len(images) {
+				// Load and display the image
+				imagePath := images[i]
+				imageName := filepath.Base(imagePath)
+				
+				// Create a container with image and filename
+				imageContainer := container.NewVBox(
+					widget.NewLabel(imageName),
+					widget.NewLabel(fmt.Sprintf("Size: %dx%d", 100, 100)), // Placeholder size
+				)
+				
+				preview.SetContent(imageContainer)
+			} else {
+				// No more images available
+				preview.SetContent(widget.NewLabel("No image available"))
+			}
+		}
+	}
+}
+
 func (g *JaqenGUI) createMainContent() *fyne.Container {
 	// Image folder selection (Step 1)
 	imgLabel := widget.NewLabel("Image Folder:")
@@ -308,6 +458,7 @@ func (g *JaqenGUI) createMainContent() *fyne.Container {
 	g.imgDirEntry.SetPlaceHolder("Select the folder containing your face images...")
 	g.imgDirEntry.OnChanged = func(text string) { 
 		g.detectPathsFromImageFolder(text)
+		g.updateImagePreviews(text)
 		g.autoSaveConfig()
 	}
 	imgButton := g.createFileSelector(g.imgDirEntry, "Select Image Folder", "directory")
@@ -341,6 +492,17 @@ func (g *JaqenGUI) createMainContent() *fyne.Container {
 	g.runButton = widget.NewButton("Assign Face Mappings", g.runProcessing)
 	g.runButton.Importance = widget.HighImportance
 	
+	// Create image preview cards
+	g.imagePreview1 = widget.NewCard("Preview 1", "", widget.NewLabel("No image selected"))
+	g.imagePreview2 = widget.NewCard("Preview 2", "", widget.NewLabel("No image selected"))
+	g.imagePreview3 = widget.NewCard("Preview 3", "", widget.NewLabel("No image selected"))
+	
+	// Set fixed sizes for preview cards
+	previewSize := fyne.NewSize(150, 120)
+	g.imagePreview1.Resize(previewSize)
+	g.imagePreview2.Resize(previewSize)
+	g.imagePreview3.Resize(previewSize)
+	
 	return container.NewVBox(
 		widget.NewCard("Setup", "", container.NewVBox(
 			container.NewBorder(nil, nil, imgLabel, imgButton, g.imgDirEntry),
@@ -348,6 +510,11 @@ func (g *JaqenGUI) createMainContent() *fyne.Container {
 			container.NewBorder(nil, nil, xmlLabel, xmlButton, g.xmlPathEntry),
 			container.NewBorder(nil, nil, rtfLabel, rtfButton, g.rtfPathEntry),
 			container.NewBorder(nil, nil, fmVersionLabel, nil, g.fmVersionSelect),
+		)),
+		widget.NewCard("Image Preview", "", container.NewHBox(
+			g.imagePreview1,
+			g.imagePreview2,
+			g.imagePreview3,
 		)),
 		widget.NewCard("Actions", "", container.NewVBox(
 			g.statusLabel,
@@ -358,53 +525,64 @@ func (g *JaqenGUI) createMainContent() *fyne.Container {
 }
 
 func (g *JaqenGUI) createMappingOverrideSection() *fyne.Container {
+	// Create a simple list with better layout
 	g.mappingOverrideList = widget.NewList(
 		func() int {
 			return len(g.mappingOverrides)
 		},
 		func() fyne.CanvasObject {
-			return container.NewHBox(
-				widget.NewLabel(""),
-				widget.NewLabel(""),
-				widget.NewButton("Edit", nil),
-				widget.NewButton("Delete", nil),
+			// Create a horizontal container with proper spacing
+			return container.NewBorder(
+				nil, nil,
+				widget.NewLabel(""), // Country code (left)
+				widget.NewButton("✕", nil), // Delete button (right)
+				widget.NewLabel(""), // Ethnic group (center)
 			)
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
 			container := obj.(*fyne.Container)
+			
+			// Get sorted list of countries for consistent ordering
 			countries := make([]string, 0, len(g.mappingOverrides))
 			for country := range g.mappingOverrides {
 				countries = append(countries, country)
 			}
+			sort.Strings(countries) // Sort for consistent display
+			
 			if id < len(countries) {
 				country := countries[id]
 				ethnic := g.mappingOverrides[country]
-				container.Objects[0].(*widget.Label).SetText(country)
-				container.Objects[1].(*widget.Label).SetText(ethnic)
 				
-				// Edit button
-				editBtn := container.Objects[2].(*widget.Button)
-				editBtn.OnTapped = func() {
-					g.editMappingOverride(country, ethnic)
-				}
+				// Set country code label (left)
+				countryLabel := container.Objects[0].(*widget.Label)
+				countryLabel.SetText(country)
+				countryLabel.TextStyle.Bold = true
 				
-				// Delete button
-				deleteBtn := container.Objects[3].(*widget.Button)
+				// Set ethnic group label (center)
+				ethnicLabel := container.Objects[1].(*widget.Label)
+				ethnicLabel.SetText(ethnic)
+				
+				// Set up delete button (right)
+				deleteBtn := container.Objects[2].(*widget.Button)
 				deleteBtn.OnTapped = func() {
 					delete(g.mappingOverrides, country)
 					g.updateMappingOverrideList()
+					g.autoSaveConfig()
 				}
 			}
 		},
 	)
+	
+	// Set a reasonable size for the list
+	g.mappingOverrideList.Resize(fyne.NewSize(450, 250))
 
-	addButton := widget.NewButton("Add Override", g.addMappingOverride)
-	loadDefaultsButton := widget.NewButton("Load Defaults", g.loadDefaultMappings)
+	addButton := widget.NewButton("Add Mapping Override", g.addMappingOverride)
 
 	return container.NewVBox(
 		widget.NewCard("Mapping Overrides", "", container.NewVBox(
+			widget.NewLabel("Country Code → Ethnic Group"),
 			g.mappingOverrideList,
-			container.NewHBox(addButton, loadDefaultsButton),
+			addButton,
 		)),
 	)
 }
@@ -432,27 +610,26 @@ func (g *JaqenGUI) editMappingOverride(country, ethnic string) {
 		},
 	}
 
+	// Use settings window if it exists, otherwise main window
+	targetWindow := g.window
+	if g.settingsWindow != nil {
+		targetWindow = g.settingsWindow
+	}
+
 	dialog.ShowForm("Edit Mapping Override", "Save", "Cancel", form.Items, func(confirmed bool) {
 		if confirmed && countryEntry.Text != "" && ethnicSelect.Selected != "" {
+			// Ensure mappingOverrides map is initialized
+			if g.mappingOverrides == nil {
+				g.mappingOverrides = make(map[string]string)
+			}
 			g.mappingOverrides[countryEntry.Text] = ethnicSelect.Selected
 			g.updateMappingOverrideList()
+			g.autoSaveConfig() // Save the new mapping
+		} else if confirmed && (countryEntry.Text == "" || ethnicSelect.Selected == "") {
+			// Show error if user tries to save empty values
+			dialog.ShowError(fmt.Errorf("Country code and ethnic group are required"), targetWindow)
 		}
-	}, g.window)
-}
-
-func (g *JaqenGUI) loadDefaultMappings() {
-	// Load some common mapping overrides as examples
-	g.mappingOverrides["ENG"] = "Caucasian"
-	g.mappingOverrides["GER"] = "Central European"
-	g.mappingOverrides["FRA"] = "Central European"
-	g.mappingOverrides["ESP"] = "SpanMed"
-	g.mappingOverrides["ITA"] = "Italmed"
-	g.mappingOverrides["BRA"] = "South American"
-	g.mappingOverrides["ARG"] = "SAMed"
-	g.mappingOverrides["USA"] = "Caucasian"
-	g.mappingOverrides["JPN"] = "Asian"
-	g.mappingOverrides["CHN"] = "Asian"
-	g.updateMappingOverrideList()
+	}, targetWindow)
 }
 
 func (g *JaqenGUI) createInputSection() *fyne.Container {
@@ -737,6 +914,15 @@ func (g *JaqenGUI) ShowAndRun() {
 	paddedContent := container.NewPadded(content)
 
 	g.window.SetContent(paddedContent)
+	
+	// Close settings window when main window closes
+	g.window.SetCloseIntercept(func() {
+		if g.settingsWindow != nil {
+			g.settingsWindow.Close()
+		}
+		g.window.Close()
+	})
+	
 	g.window.ShowAndRun()
 }
 
