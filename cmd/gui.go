@@ -25,13 +25,20 @@ type JaqenGUI struct {
 	xmlPathEntry       *widget.Entry
 	rtfPathEntry       *widget.Entry
 	imgDirEntry        *widget.Entry
-	configPathEntry    *widget.Entry
 	preserveCheck      *widget.Check
 	allowDuplicateCheck *widget.Check
 	fmVersionSelect    *widget.Select
 	statusLabel        *widget.Label
 	progressBar        *widget.ProgressBar
 	runButton          *widget.Button
+	mappingOverrideList *widget.List
+	mappingOverrides   map[string]string
+	config             internal.JaqenConfig
+	currentStep        int
+	stepContainer      *fyne.Container
+	nextButton         *widget.Button
+	prevButton         *widget.Button
+	advancedMode       bool
 }
 
 func NewJaqenGUI() *JaqenGUI {
@@ -39,12 +46,101 @@ func NewJaqenGUI() *JaqenGUI {
 	myApp.SetIcon(theme.DocumentIcon())
 	
 	window := myApp.NewWindow("Jaqen - Football Manager Face Manager")
-	window.Resize(fyne.NewSize(800, 600))
+	window.Resize(fyne.NewSize(900, 700))
 	window.CenterOnScreen()
 
 	return &JaqenGUI{
-		app:    myApp,
-		window: window,
+		app:              myApp,
+		window:           window,
+		mappingOverrides: make(map[string]string),
+	}
+}
+
+func (g *JaqenGUI) loadConfig() {
+	configPath := g.configPathEntry.Text
+	if configPath == "" {
+		configPath = internal.DefaultConfigPath
+	}
+
+	// Try to load existing config
+	if _, err := os.Stat(configPath); err == nil {
+		config, err := internal.ReadConfig(configPath)
+		if err == nil {
+			g.config = config
+			g.applyConfigToGUI()
+		}
+	} else {
+		// Create default config
+		g.createDefaultConfig()
+	}
+}
+
+func (g *JaqenGUI) createDefaultConfig() {
+	g.config = internal.JaqenConfig{
+		Preserve:        &[]bool{internal.DefaultPreserve}[0],
+		XMLPath:         &[]string{internal.DefaultXMLPath}[0],
+		RTFPath:         &[]string{internal.DefaultRTFPath}[0],
+		IMGPath:         &[]string{internal.DefaultImagesPath}[0],
+		FMVersion:       &[]string{internal.DefaultFMVersion}[0],
+		AllowDuplicate:  &[]bool{internal.DefaultAllowDuplicate}[0],
+		MappingOverride: &map[string]string{},
+	}
+	g.mappingOverrides = make(map[string]string)
+}
+
+func (g *JaqenGUI) applyConfigToGUI() {
+	if g.config.Preserve != nil {
+		g.preserveCheck.SetChecked(*g.config.Preserve)
+	}
+	if g.config.AllowDuplicate != nil {
+		g.allowDuplicateCheck.SetChecked(*g.config.AllowDuplicate)
+	}
+	if g.config.FMVersion != nil {
+		g.fmVersionSelect.SetSelected(*g.config.FMVersion)
+	}
+	if g.config.XMLPath != nil {
+		g.xmlPathEntry.SetText(*g.config.XMLPath)
+	}
+	if g.config.RTFPath != nil {
+		g.rtfPathEntry.SetText(*g.config.RTFPath)
+	}
+	if g.config.IMGPath != nil {
+		g.imgDirEntry.SetText(*g.config.IMGPath)
+	}
+	if g.config.MappingOverride != nil {
+		g.mappingOverrides = *g.config.MappingOverride
+		g.updateMappingOverrideList()
+	}
+}
+
+func (g *JaqenGUI) saveConfig() {
+	// Update config from GUI
+	preserve := g.preserveCheck.Checked
+	allowDuplicate := g.allowDuplicateCheck.Checked
+	fmVersion := g.fmVersionSelect.Selected
+	xmlPath := g.xmlPathEntry.Text
+	rtfPath := g.rtfPathEntry.Text
+	imgPath := g.imgDirEntry.Text
+
+	g.config.Preserve = &preserve
+	g.config.AllowDuplicate = &allowDuplicate
+	g.config.FMVersion = &fmVersion
+	g.config.XMLPath = &xmlPath
+	g.config.RTFPath = &rtfPath
+	g.config.IMGPath = &imgPath
+	g.config.MappingOverride = &g.mappingOverrides
+
+	// Save to file
+	configPath := g.configPathEntry.Text
+	if configPath == "" {
+		configPath = internal.DefaultConfigPath
+	}
+
+	err := internal.WriteConfig(g.config, configPath)
+	if err != nil {
+		fyne.Do(func() {
+			dialog.ShowError(fmt.Errorf("Error saving config: %w", err), g.window)
+		})
 	}
 }
 
@@ -76,6 +172,110 @@ func (g *JaqenGUI) createFileSelector(entry *widget.Entry, title string, fileTyp
 			}
 		}
 	})
+}
+
+func (g *JaqenGUI) updateMappingOverrideList() {
+	if g.mappingOverrideList != nil {
+		g.mappingOverrideList.Refresh()
+	}
+}
+
+func (g *JaqenGUI) createMappingOverrideSection() *fyne.Container {
+	g.mappingOverrideList = widget.NewList(
+		func() int {
+			return len(g.mappingOverrides)
+		},
+		func() fyne.CanvasObject {
+			return container.NewHBox(
+				widget.NewLabel(""),
+				widget.NewLabel(""),
+				widget.NewButton("Edit", nil),
+				widget.NewButton("Delete", nil),
+			)
+		},
+		func(id widget.ListItemID, obj fyne.CanvasObject) {
+			container := obj.(*fyne.Container)
+			countries := make([]string, 0, len(g.mappingOverrides))
+			for country := range g.mappingOverrides {
+				countries = append(countries, country)
+			}
+			if id < len(countries) {
+				country := countries[id]
+				ethnic := g.mappingOverrides[country]
+				container.Objects[0].(*widget.Label).SetText(country)
+				container.Objects[1].(*widget.Label).SetText(ethnic)
+				
+				// Edit button
+				editBtn := container.Objects[2].(*widget.Button)
+				editBtn.OnTapped = func() {
+					g.editMappingOverride(country, ethnic)
+				}
+				
+				// Delete button
+				deleteBtn := container.Objects[3].(*widget.Button)
+				deleteBtn.OnTapped = func() {
+					delete(g.mappingOverrides, country)
+					g.updateMappingOverrideList()
+				}
+			}
+		},
+	)
+
+	addButton := widget.NewButton("Add Override", g.addMappingOverride)
+	loadDefaultsButton := widget.NewButton("Load Defaults", g.loadDefaultMappings)
+
+	return container.NewVBox(
+		widget.NewCard("Mapping Overrides", "", container.NewVBox(
+			g.mappingOverrideList,
+			container.NewHBox(addButton, loadDefaultsButton),
+		)),
+	)
+}
+
+func (g *JaqenGUI) addMappingOverride() {
+	g.editMappingOverride("", "")
+}
+
+func (g *JaqenGUI) editMappingOverride(country, ethnic string) {
+	countryEntry := widget.NewEntry()
+	countryEntry.SetText(country)
+	countryEntry.SetPlaceHolder("Country Code (e.g., ENG)")
+
+	ethnicSelect := widget.NewSelect([]string{
+		"African", "Asian", "Caucasian", "Central European", "EECA",
+		"Italmed", "MENA", "MESA", "SAMed", "Scandinavian",
+		"Seasian", "South American", "SpanMed", "YugoGreek",
+	}, nil)
+	ethnicSelect.SetSelected(ethnic)
+
+	form := &widget.Form{
+		Items: []*widget.FormItem{
+			{Text: "Country Code", Widget: countryEntry},
+			{Text: "Ethnic Group", Widget: ethnicSelect},
+		},
+	}
+
+	dialog.ShowForm("Edit Mapping Override", "Save", "Cancel", form.Items, func(confirmed bool) {
+		if confirmed && countryEntry.Text != "" && ethnicSelect.Selected != "" {
+			g.mappingOverrides[countryEntry.Text] = ethnicSelect.Selected
+			g.updateMappingOverrideList()
+		}
+	}, g.window)
+}
+
+func (g *JaqenGUI) loadDefaultMappings() {
+	// Load some common mapping overrides as examples
+	g.mappingOverrides["ENG"] = "Caucasian"
+	g.mappingOverrides["GER"] = "Central European"
+	g.mappingOverrides["FRA"] = "Central European"
+	g.mappingOverrides["ESP"] = "SpanMed"
+	g.mappingOverrides["ITA"] = "Italmed"
+	g.mappingOverrides["BRA"] = "South American"
+	g.mappingOverrides["ARG"] = "SAMed"
+	g.mappingOverrides["USA"] = "Caucasian"
+	g.mappingOverrides["JPN"] = "Asian"
+	g.mappingOverrides["CHN"] = "Asian"
+	g.updateMappingOverrideList()
 }
 
 func (g *JaqenGUI) createInputSection() *fyne.Container {
@@ -145,13 +345,15 @@ func (g *JaqenGUI) createActionSection() *fyne.Container {
 	g.runButton = widget.NewButton("Process Files", g.runProcessing)
 	g.runButton.Importance = widget.HighImportance
 
+	saveButton := widget.NewButton("Save Config", g.saveConfig)
+	loadButton := widget.NewButton("Load Config", g.loadConfig)
 	formatButton := widget.NewButton("Format Config", g.formatConfig)
 
 	return container.NewVBox(
 		widget.NewCard("Actions", "", container.NewVBox(
 			g.statusLabel,
 			g.progressBar,
-			container.NewHBox(g.runButton, formatButton),
+			container.NewHBox(g.runButton, saveButton, loadButton, formatButton),
 		)),
 	)
 }
@@ -188,6 +390,9 @@ func (g *JaqenGUI) runProcessing() {
 		dialog.ShowError(fmt.Errorf("Image directory path is required"), g.window)
 		return
 	}
+
+	// Save config before processing
+	g.saveConfig()
 
 	g.runButton.SetText("Processing...")
 	g.runButton.Disable()
@@ -234,6 +439,17 @@ func (g *JaqenGUI) processFiles() {
 		g.progressBar.SetValue(0.2)
 		g.statusLabel.SetText("Creating mapping...")
 	})
+
+	// Apply mapping overrides
+	if len(g.mappingOverrides) > 0 {
+		err := mapper.OverrideNationEthnicMapping(g.mappingOverrides)
+		if err != nil {
+			fyne.Do(func() {
+				dialog.ShowError(fmt.Errorf("Error applying mapping overrides: %w", err), g.window)
+			})
+			return
+		}
+	}
 
 	// Create mapping
 	mapping, err := mapper.NewMapping(g.xmlPathEntry.Text, g.fmVersionSelect.Selected)
@@ -338,10 +554,14 @@ func (g *JaqenGUI) processFiles() {
 }
 
 func (g *JaqenGUI) ShowAndRun() {
+	// Initialize config
+	g.createDefaultConfig()
+	
 	// Create main layout
 	content := container.NewVBox(
 		g.createInputSection(),
 		g.createOptionsSection(),
+		g.createMappingOverrideSection(),
 		g.createActionSection(),
 	)
 

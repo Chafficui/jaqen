@@ -36,17 +36,30 @@ Jaqen now includes a modern, sleek graphical user interface built with Fyne that
 
 ## How to Use
 
-### Building the GUI Version
+### Building and Running
 
 ```bash
-# Build GUI version
-make build-gui
+# Build (GUI mode by default)
+make build
 
-# Or build directly
-go build -tags gui .
+# Run GUI (default mode)
+./jaqen
 
-# Run GUI
-./jaqen gui
+# Or run directly
+go run .
+```
+
+### CLI Mode Alternative
+
+If you prefer the command-line interface:
+
+```bash
+# Run CLI mode
+./jaqen cli
+
+# Or build CLI-only version
+make build-cli
+./jaqen cli
 ```
 
 ### GUI Workflow
@@ -72,9 +85,9 @@ go build -tags gui .
 ## Technical Details
 
 ### Build Tags
-The GUI uses Go build tags to conditionally compile:
-- **CLI version**: `go build .` (default)
-- **GUI version**: `go build -tags gui .`
+The project uses Go build tags to conditionally compile:
+- **Default version**: `go build .` (includes GUI, launches GUI by default)
+- **CLI-only version**: `go build -tags cli .` (CLI-only, no GUI dependencies)
 
 ### Dependencies
 - **Fyne v2.6.3** - Modern Go GUI framework

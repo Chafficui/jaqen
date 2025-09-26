@@ -33,6 +33,16 @@ const (
 	flagkeyDuplicate = "allow_duplicate"
 )
 
+func runDefault(cmd *cobra.Command, args []string) {
+	// Check if we're in CLI mode (build tag cli)
+	// If not, launch GUI by default
+	runGUI(cmd, args)
+}
+
+func runCLI(cmd *cobra.Command, args []string) {
+	mapFaces(cmd, args)
+}
+
 func mapFaces(cmd *cobra.Command, _ []string) {
 	if _, err := os.Stat(configPath); err == nil {
 		configFromFile, err := internal.ReadConfig(configPath)
@@ -145,8 +155,8 @@ func mapFaces(cmd *cobra.Command, _ []string) {
 var rootCmd = &cobra.Command{
 	Use:   "jaqen",
 	Short: "Creates your mapping file for Football Manager regen images",
-	Long:  `CLI that creates your mapping file for Football Manager regen images.`,
-	Run:   mapFaces,
+	Long:  `GUI and CLI tool that creates your mapping file for Football Manager regen images.`,
+	Run:   runDefault,
 }
 
 func Execute() {
@@ -165,6 +175,15 @@ func init() {
 	rootCmd.Flags().StringVarP(&configPath, flagkeyConfig, "c", internal.DefaultConfigPath, "Specify the config file path")
 	rootCmd.Flags().BoolVarP(&allowDuplicate, flagkeyDuplicate, "d", internal.DefaultAllowDuplicate, "Allow duplicate images")
 	
+	// Add CLI command
+	rootCmd.AddCommand(cliCmd)
 	// Add GUI command
 	rootCmd.AddCommand(guiCmd)
+}
+
+var cliCmd = &cobra.Command{
+	Use:   "cli",
+	Short: "Run in command-line interface mode",
+	Long:  "Run Jaqen in command-line interface mode instead of the default GUI",
+	Run:   runCLI,
 }

@@ -16,20 +16,21 @@ I found the original didn't run well on Linux, but works pretty well for Windows
 
 **If you're not interested in configuring your own setup, just read the [basic setup](./docs/basic_setup.md)**
 
-### GUI Mode (Recommended)
+### Default Mode (GUI)
 
-For a modern, user-friendly interface, use the GUI:
+Jaqen now launches the modern GUI by default:
 
 ```bash
-# Build GUI version
-make build-gui
+# Build and run (GUI mode by default)
+make build
+./jaqen
 
-# Run GUI
-./jaqen gui
+# Or run directly
+go run .
 ```
 
 The GUI provides:
-- Easy file selection with browse dialogs
+- Easy file selection with native browse dialogs
 - Visual progress indicators
 - Checkbox options instead of command-line flags
 - Real-time status updates
@@ -38,6 +39,17 @@ The GUI provides:
 See the [GUI Guide](./docs/gui-guide.md) for detailed instructions.
 
 ### CLI Mode
+
+To use the command-line interface instead of the GUI:
+
+```bash
+# Run CLI mode
+./jaqen cli
+
+# Or build CLI-only version
+make build-cli
+./jaqen cli
+```
 
 These are the flags that you could use to specify the paths for various files if you would wish to change the defaults
 
