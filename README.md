@@ -16,6 +16,29 @@ I found the original didn't run well on Linux, but works pretty well for Windows
 
 **If you're not interested in configuring your own setup, just read the [basic setup](./docs/basic_setup.md)**
 
+### GUI Mode (Recommended)
+
+For a modern, user-friendly interface, use the GUI:
+
+```bash
+# Build GUI version
+make build-gui
+
+# Run GUI
+./jaqen gui
+```
+
+The GUI provides:
+- Easy file selection with browse dialogs
+- Visual progress indicators
+- Checkbox options instead of command-line flags
+- Real-time status updates
+- Error handling with user-friendly messages
+
+See the [GUI Guide](./docs/gui-guide.md) for detailed instructions.
+
+### CLI Mode
+
 These are the flags that you could use to specify the paths for various files if you would wish to change the defaults
 
 - `--xml` specifies the xml path. Defaults to `./config.xml`
@@ -91,7 +114,7 @@ These are the current code for faces
 
 This is just some notes on what I want it to do in the future.
 
-- Build a GUI, maybe with Go Wails? But if you already play a spreadsheet game I assume you would also know how to read some instructions :p
+- ✅ **Build a GUI** - Implemented with Fyne! Modern, cross-platform interface
 - There are some performance left on the table, currently the way reading and writing to file works relatively slow compared to what a buffered read and a generator could do. Probably faster than Python though :p
 - Remove the need to copy the `config.xml` file into the directory
 - Write some god damn tests

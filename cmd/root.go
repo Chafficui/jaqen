@@ -164,4 +164,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&fmVersion, flagkeyFmVersion, "v", internal.DefaultFMVersion, "Specify the football manager version")
 	rootCmd.Flags().StringVarP(&configPath, flagkeyConfig, "c", internal.DefaultConfigPath, "Specify the config file path")
 	rootCmd.Flags().BoolVarP(&allowDuplicate, flagkeyDuplicate, "d", internal.DefaultAllowDuplicate, "Allow duplicate images")
+	
+	// Add GUI command
+	rootCmd.AddCommand(guiCmd)
 }
