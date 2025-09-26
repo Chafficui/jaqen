@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -22,23 +23,25 @@ import (
 type JaqenGUI struct {
 	app                fyne.App
 	window             fyne.Window
+	mainContainer      *fyne.Container
+	settingsWindow     fyne.Window
+	
+	// Main content
+	imgDirEntry        *widget.Entry
 	xmlPathEntry       *widget.Entry
 	rtfPathEntry       *widget.Entry
-	imgDirEntry        *widget.Entry
-	preserveCheck      *widget.Check
-	allowDuplicateCheck *widget.Check
 	fmVersionSelect    *widget.Select
 	statusLabel        *widget.Label
 	progressBar        *widget.ProgressBar
 	runButton          *widget.Button
+	
+	// Settings
+	preserveCheck      *widget.Check
+	allowDuplicateCheck *widget.Check
 	mappingOverrideList *widget.List
 	mappingOverrides   map[string]string
+	
 	config             internal.JaqenConfig
-	currentStep        int
-	stepContainer      *fyne.Container
-	nextButton         *widget.Button
-	prevButton         *widget.Button
-	advancedMode       bool
 }
 
 func NewJaqenGUI() *JaqenGUI {
@@ -46,7 +49,7 @@ func NewJaqenGUI() *JaqenGUI {
 	myApp.SetIcon(theme.DocumentIcon())
 	
 	window := myApp.NewWindow("Jaqen - Football Manager Face Manager")
-	window.Resize(fyne.NewSize(900, 700))
+	window.Resize(fyne.NewSize(800, 600))
 	window.CenterOnScreen()
 
 	return &JaqenGUI{
@@ -57,10 +60,7 @@ func NewJaqenGUI() *JaqenGUI {
 }
 
 func (g *JaqenGUI) loadConfig() {
-	configPath := g.configPathEntry.Text
-	if configPath == "" {
-		configPath = internal.DefaultConfigPath
-	}
+	configPath := internal.DefaultConfigPath
 
 	// Try to load existing config
 	if _, err := os.Stat(configPath); err == nil {
@@ -77,34 +77,35 @@ func (g *JaqenGUI) loadConfig() {
 
 func (g *JaqenGUI) createDefaultConfig() {
 	g.config = internal.JaqenConfig{
-		Preserve:        &[]bool{internal.DefaultPreserve}[0],
+		Preserve:        &[]bool{true}[0], // Default to true
 		XMLPath:         &[]string{internal.DefaultXMLPath}[0],
 		RTFPath:         &[]string{internal.DefaultRTFPath}[0],
 		IMGPath:         &[]string{internal.DefaultImagesPath}[0],
 		FMVersion:       &[]string{internal.DefaultFMVersion}[0],
-		AllowDuplicate:  &[]bool{internal.DefaultAllowDuplicate}[0],
+		AllowDuplicate:  &[]bool{true}[0], // Default to true
 		MappingOverride: &map[string]string{},
 	}
 	g.mappingOverrides = make(map[string]string)
 }
 
 func (g *JaqenGUI) applyConfigToGUI() {
-	if g.config.Preserve != nil {
+	// Only apply config if widgets have been created
+	if g.preserveCheck != nil && g.config.Preserve != nil {
 		g.preserveCheck.SetChecked(*g.config.Preserve)
 	}
-	if g.config.AllowDuplicate != nil {
+	if g.allowDuplicateCheck != nil && g.config.AllowDuplicate != nil {
 		g.allowDuplicateCheck.SetChecked(*g.config.AllowDuplicate)
 	}
-	if g.config.FMVersion != nil {
+	if g.fmVersionSelect != nil && g.config.FMVersion != nil {
 		g.fmVersionSelect.SetSelected(*g.config.FMVersion)
 	}
-	if g.config.XMLPath != nil {
+	if g.xmlPathEntry != nil && g.config.XMLPath != nil {
 		g.xmlPathEntry.SetText(*g.config.XMLPath)
 	}
-	if g.config.RTFPath != nil {
+	if g.rtfPathEntry != nil && g.config.RTFPath != nil {
 		g.rtfPathEntry.SetText(*g.config.RTFPath)
 	}
-	if g.config.IMGPath != nil {
+	if g.imgDirEntry != nil && g.config.IMGPath != nil {
 		g.imgDirEntry.SetText(*g.config.IMGPath)
 	}
 	if g.config.MappingOverride != nil {
@@ -114,34 +115,109 @@ func (g *JaqenGUI) applyConfigToGUI() {
 }
 
 func (g *JaqenGUI) saveConfig() {
-	// Update config from GUI
-	preserve := g.preserveCheck.Checked
-	allowDuplicate := g.allowDuplicateCheck.Checked
-	fmVersion := g.fmVersionSelect.Selected
-	xmlPath := g.xmlPathEntry.Text
-	rtfPath := g.rtfPathEntry.Text
-	imgPath := g.imgDirEntry.Text
-
-	g.config.Preserve = &preserve
-	g.config.AllowDuplicate = &allowDuplicate
-	g.config.FMVersion = &fmVersion
-	g.config.XMLPath = &xmlPath
-	g.config.RTFPath = &rtfPath
-	g.config.IMGPath = &imgPath
+	// Update config from GUI (only if widgets exist)
+	if g.preserveCheck != nil {
+		preserve := g.preserveCheck.Checked
+		g.config.Preserve = &preserve
+	}
+	if g.allowDuplicateCheck != nil {
+		allowDuplicate := g.allowDuplicateCheck.Checked
+		g.config.AllowDuplicate = &allowDuplicate
+	}
+	if g.fmVersionSelect != nil {
+		fmVersion := g.fmVersionSelect.Selected
+		g.config.FMVersion = &fmVersion
+	}
+	if g.xmlPathEntry != nil {
+		xmlPath := g.xmlPathEntry.Text
+		g.config.XMLPath = &xmlPath
+	}
+	if g.rtfPathEntry != nil {
+		rtfPath := g.rtfPathEntry.Text
+		g.config.RTFPath = &rtfPath
+	}
+	if g.imgDirEntry != nil {
+		imgPath := g.imgDirEntry.Text
+		g.config.IMGPath = &imgPath
+	}
 	g.config.MappingOverride = &g.mappingOverrides
 
-	// Save to file
-	configPath := g.configPathEntry.Text
-	if configPath == "" {
-		configPath = internal.DefaultConfigPath
-	}
-
+	// Save to default config file
+	configPath := internal.DefaultConfigPath
 	err := internal.WriteConfig(g.config, configPath)
 	if err != nil {
 		fyne.Do(func() {
 			dialog.ShowError(fmt.Errorf("Error saving config: %w", err), g.window)
 		})
 	}
+}
+
+func (g *JaqenGUI) autoSaveConfig() {
+	// Auto-save config whenever settings change
+	go func() {
+		g.saveConfig()
+	}()
+}
+
+func (g *JaqenGUI) detectPathsFromImageFolder(imgPath string) {
+	if imgPath == "" {
+		return
+	}
+	
+	// Extract FM version from path
+	fmVersion := g.extractFMVersion(imgPath)
+	if fmVersion != "" {
+		g.fmVersionSelect.SetSelected(fmVersion)
+	}
+	
+	// Set config.xml path (always in image folder)
+	configPath := filepath.Join(imgPath, "config.xml")
+	if _, err := os.Stat(configPath); err == nil {
+		g.xmlPathEntry.SetText(configPath)
+	}
+	
+	// Try to find RTF file in common locations
+	rtfPath := g.findRTFFile(imgPath)
+	if rtfPath != "" {
+		g.rtfPathEntry.SetText(rtfPath)
+	}
+}
+
+func (g *JaqenGUI) extractFMVersion(imgPath string) string {
+	// Look for patterns like "Football Manager 2022", "FM2022", "2022", etc.
+	pathParts := strings.Split(imgPath, string(os.PathSeparator))
+	for _, part := range pathParts {
+		if strings.Contains(strings.ToLower(part), "football manager") || strings.Contains(strings.ToLower(part), "fm") {
+			// Extract year from the part
+			re := regexp.MustCompile(`\b(20\d{2})\b`)
+			matches := re.FindStringSubmatch(part)
+			if len(matches) > 0 {
+				return matches[0]
+			}
+		}
+	}
+	return ""
+}
+
+func (g *JaqenGUI) findRTFFile(imgPath string) string {
+	// Common locations to search for RTF files
+	searchPaths := []string{
+		imgPath,                                    // Same directory as images
+		filepath.Dir(imgPath),                      // Parent directory
+		filepath.Join(filepath.Dir(imgPath), ".."), // Grandparent directory
+	}
+	
+	for _, searchPath := range searchPaths {
+		// Look for common RTF file names
+		rtfFiles := []string{"newgen.rtf", "players.rtf", "regens.rtf"}
+		for _, rtfFile := range rtfFiles {
+			fullPath := filepath.Join(searchPath, rtfFile)
+			if _, err := os.Stat(fullPath); err == nil {
+				return fullPath
+			}
+		}
+	}
+	return ""
 }
 
 func (g *JaqenGUI) createFileSelector(entry *widget.Entry, title string, fileType string) *widget.Button {
@@ -174,10 +250,111 @@ func (g *JaqenGUI) createFileSelector(entry *widget.Entry, title string, fileTyp
 	})
 }
 
+func (g *JaqenGUI) createHeaderBar() *fyne.Container {
+	title := widget.NewLabel("Jaqen - Football Manager Face Manager")
+	title.TextStyle.Bold = true
+	
+	settingsButton := widget.NewButtonWithIcon("", theme.SettingsIcon(), g.openSettings)
+	settingsButton.Importance = widget.MediumImportance
+	
+	return container.NewBorder(nil, nil, title, settingsButton, widget.NewSeparator())
+}
+
+func (g *JaqenGUI) openSettings() {
+	if g.settingsWindow != nil {
+		g.settingsWindow.Show()
+		return
+	}
+	
+	g.settingsWindow = g.app.NewWindow("Settings")
+	g.settingsWindow.Resize(fyne.NewSize(500, 400))
+	g.settingsWindow.SetContent(g.createSettingsContent())
+	g.settingsWindow.Show()
+}
+
+func (g *JaqenGUI) createSettingsContent() *fyne.Container {
+	// Preserve checkbox
+	g.preserveCheck = widget.NewCheck("Preserve existing mappings", nil)
+	g.preserveCheck.SetChecked(true)
+	g.preserveCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
+	
+	// Allow duplicate checkbox
+	g.allowDuplicateCheck = widget.NewCheck("Allow duplicate mappings", nil)
+	g.allowDuplicateCheck.SetChecked(true)
+	g.allowDuplicateCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
+	
+	// Mapping overrides section
+	mappingOverrideCard := widget.NewCard("Mapping Overrides", "", g.createMappingOverrideSection())
+	
+	return container.NewVBox(
+		widget.NewCard("General Settings", "", container.NewVBox(
+			g.preserveCheck,
+			g.allowDuplicateCheck,
+		)),
+		mappingOverrideCard,
+	)
+}
+
 func (g *JaqenGUI) updateMappingOverrideList() {
 	if g.mappingOverrideList != nil {
 		g.mappingOverrideList.Refresh()
 	}
+}
+
+func (g *JaqenGUI) createMainContent() *fyne.Container {
+	// Image folder selection (Step 1)
+	imgLabel := widget.NewLabel("Image Folder:")
+	g.imgDirEntry = widget.NewEntry()
+	g.imgDirEntry.SetPlaceHolder("Select the folder containing your face images...")
+	g.imgDirEntry.OnChanged = func(text string) { 
+		g.detectPathsFromImageFolder(text)
+		g.autoSaveConfig()
+	}
+	imgButton := g.createFileSelector(g.imgDirEntry, "Select Image Folder", "directory")
+	
+	// Detected files section (Step 2)
+	xmlLabel := widget.NewLabel("Config XML File:")
+	g.xmlPathEntry = widget.NewEntry()
+	g.xmlPathEntry.SetPlaceHolder("Will be auto-detected from image folder...")
+	g.xmlPathEntry.OnChanged = func(_ string) { g.autoSaveConfig() }
+	xmlButton := g.createFileSelector(g.xmlPathEntry, "Select XML File", "xml")
+	
+	rtfLabel := widget.NewLabel("RTF Player File:")
+	g.rtfPathEntry = widget.NewEntry()
+	g.rtfPathEntry.SetPlaceHolder("Will be auto-detected from image folder...")
+	g.rtfPathEntry.OnChanged = func(_ string) { g.autoSaveConfig() }
+	rtfButton := g.createFileSelector(g.rtfPathEntry, "Select RTF File", "rtf")
+	
+	// FM Version (Step 3)
+	fmVersionLabel := widget.NewLabel("Football Manager Version:")
+	g.fmVersionSelect = widget.NewSelect([]string{"2024", "2023", "2022", "2021", "2020"}, nil)
+	g.fmVersionSelect.SetSelected("2024")
+	g.fmVersionSelect.OnChanged = func(_ string) { g.autoSaveConfig() }
+	
+	// Status and action
+	g.statusLabel = widget.NewLabel("Select an image folder to get started...")
+	g.statusLabel.Wrapping = fyne.TextWrapWord
+	
+	g.progressBar = widget.NewProgressBar()
+	g.progressBar.Hide()
+	
+	g.runButton = widget.NewButton("Assign Face Mappings", g.runProcessing)
+	g.runButton.Importance = widget.HighImportance
+	
+	return container.NewVBox(
+		widget.NewCard("Setup", "", container.NewVBox(
+			container.NewBorder(nil, nil, imgLabel, imgButton, g.imgDirEntry),
+			widget.NewSeparator(),
+			container.NewBorder(nil, nil, xmlLabel, xmlButton, g.xmlPathEntry),
+			container.NewBorder(nil, nil, rtfLabel, rtfButton, g.rtfPathEntry),
+			container.NewBorder(nil, nil, fmVersionLabel, nil, g.fmVersionSelect),
+		)),
+		widget.NewCard("Actions", "", container.NewVBox(
+			g.statusLabel,
+			g.progressBar,
+			g.runButton,
+		)),
+	)
 }
 
 func (g *JaqenGUI) createMappingOverrideSection() *fyne.Container {
@@ -283,32 +460,28 @@ func (g *JaqenGUI) createInputSection() *fyne.Container {
 	xmlLabel := widget.NewLabel("XML Config File:")
 	g.xmlPathEntry = widget.NewEntry()
 	g.xmlPathEntry.SetText(internal.DefaultXMLPath)
+	g.xmlPathEntry.OnChanged = func(_ string) { g.autoSaveConfig() }
 	xmlButton := g.createFileSelector(g.xmlPathEntry, "Select XML File", "xml")
 
 	// RTF File Selection
 	rtfLabel := widget.NewLabel("RTF Player File:")
 	g.rtfPathEntry = widget.NewEntry()
 	g.rtfPathEntry.SetText(internal.DefaultRTFPath)
+	g.rtfPathEntry.OnChanged = func(_ string) { g.autoSaveConfig() }
 	rtfButton := g.createFileSelector(g.rtfPathEntry, "Select RTF File", "rtf")
 
 	// Image Directory Selection
 	imgLabel := widget.NewLabel("Image Directory:")
 	g.imgDirEntry = widget.NewEntry()
 	g.imgDirEntry.SetText(internal.DefaultImagesPath)
+	g.imgDirEntry.OnChanged = func(_ string) { g.autoSaveConfig() }
 	imgButton := g.createFileSelector(g.imgDirEntry, "Select Image Directory", "directory")
-
-	// Config File Selection
-	configLabel := widget.NewLabel("Config File (Optional):")
-	g.configPathEntry = widget.NewEntry()
-	g.configPathEntry.SetText(internal.DefaultConfigPath)
-	configButton := g.createFileSelector(g.configPathEntry, "Select Config File", "toml")
 
 	return container.NewVBox(
 		widget.NewCard("File Selection", "", container.NewVBox(
 			container.NewBorder(nil, nil, xmlLabel, xmlButton, g.xmlPathEntry),
 			container.NewBorder(nil, nil, rtfLabel, rtfButton, g.rtfPathEntry),
 			container.NewBorder(nil, nil, imgLabel, imgButton, g.imgDirEntry),
-			container.NewBorder(nil, nil, configLabel, configButton, g.configPathEntry),
 		)),
 	)
 }
@@ -316,15 +489,18 @@ func (g *JaqenGUI) createInputSection() *fyne.Container {
 func (g *JaqenGUI) createOptionsSection() *fyne.Container {
 	// Checkboxes
 	g.preserveCheck = widget.NewCheck("Preserve existing mappings", nil)
-	g.preserveCheck.SetChecked(internal.DefaultPreserve)
+	g.preserveCheck.SetChecked(true) // Default to true
+	g.preserveCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
 	
 	g.allowDuplicateCheck = widget.NewCheck("Allow duplicate images", nil)
-	g.allowDuplicateCheck.SetChecked(internal.DefaultAllowDuplicate)
+	g.allowDuplicateCheck.SetChecked(true) // Default to true
+	g.allowDuplicateCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
 
 	// FM Version Selection
 	fmVersionLabel := widget.NewLabel("Football Manager Version:")
 	g.fmVersionSelect = widget.NewSelect([]string{"2024", "2023", "2022", "2021", "2020"}, nil)
 	g.fmVersionSelect.SetSelected(internal.DefaultFMVersion)
+	g.fmVersionSelect.OnChanged = func(_ string) { g.autoSaveConfig() }
 
 	return container.NewVBox(
 		widget.NewCard("Options", "", container.NewVBox(
@@ -345,25 +521,18 @@ func (g *JaqenGUI) createActionSection() *fyne.Container {
 	g.runButton = widget.NewButton("Process Files", g.runProcessing)
 	g.runButton.Importance = widget.HighImportance
 
-	saveButton := widget.NewButton("Save Config", g.saveConfig)
-	loadButton := widget.NewButton("Load Config", g.loadConfig)
 	formatButton := widget.NewButton("Format Config", g.formatConfig)
 
 	return container.NewVBox(
 		widget.NewCard("Actions", "", container.NewVBox(
 			g.statusLabel,
 			g.progressBar,
-			container.NewHBox(g.runButton, saveButton, loadButton, formatButton),
+			container.NewHBox(g.runButton, formatButton),
 		)),
 	)
 }
 
 func (g *JaqenGUI) formatConfig() {
-	configPath := g.configPathEntry.Text
-	if configPath == "" {
-		configPath = internal.DefaultConfigPath
-	}
-
 	g.statusLabel.SetText("Formatting config file...")
 	g.progressBar.Show()
 	g.progressBar.SetValue(0.5)
@@ -419,10 +588,7 @@ func (g *JaqenGUI) processFiles() {
 	})
 
 	// Load config if exists
-	configPath := g.configPathEntry.Text
-	if configPath == "" {
-		configPath = internal.DefaultConfigPath
-	}
+	configPath := internal.DefaultConfigPath
 
 	if _, err := os.Stat(configPath); err == nil {
 		_, err := internal.ReadConfig(configPath)
@@ -555,15 +721,17 @@ func (g *JaqenGUI) processFiles() {
 
 func (g *JaqenGUI) ShowAndRun() {
 	// Initialize config
-	g.createDefaultConfig()
+	g.loadConfig()
 	
 	// Create main layout
 	content := container.NewVBox(
-		g.createInputSection(),
-		g.createOptionsSection(),
-		g.createMappingOverrideSection(),
-		g.createActionSection(),
+		g.createHeaderBar(),
+		widget.NewSeparator(),
+		g.createMainContent(),
 	)
+
+	// Apply config to GUI after widgets are created
+	g.applyConfigToGUI()
 
 	// Add some padding
 	paddedContent := container.NewPadded(content)
