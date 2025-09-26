@@ -3,6 +3,7 @@ package cmd
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
@@ -57,7 +58,7 @@ func NewJaqenGUI() *JaqenGUI {
 	myApp.SetIcon(theme.DocumentIcon())
 	
 	window := myApp.NewWindow("Jaqen - Football Manager Face Manager")
-	window.Resize(fyne.NewSize(800, 600))
+	window.Resize(fyne.NewSize(1400, 900)) // Much larger window for bigger images
 	window.CenterOnScreen()
 
 	return &JaqenGUI{
@@ -319,7 +320,7 @@ func (g *JaqenGUI) openSettings() {
 	}
 	
 	g.settingsWindow = g.app.NewWindow("Settings")
-	g.settingsWindow.Resize(fyne.NewSize(500, 400))
+	g.settingsWindow.Resize(fyne.NewSize(600, 500)) // Larger settings window
 	g.settingsWindow.SetContent(g.createSettingsContent())
 	
 	// Apply config to settings widgets after they're created
@@ -412,13 +413,13 @@ func (g *JaqenGUI) updateImagePreviews(imgDir string) {
 	if imgDir == "" {
 		// Clear previews if no directory selected
 		if g.imagePreview1 != nil {
-			g.imagePreview1.SetContent(widget.NewLabel("No image selected"))
+			g.imagePreview1.SetContent(widget.NewLabel("No folder selected"))
 		}
 		if g.imagePreview2 != nil {
-			g.imagePreview2.SetContent(widget.NewLabel("No image selected"))
+			g.imagePreview2.SetContent(widget.NewLabel("No folder selected"))
 		}
 		if g.imagePreview3 != nil {
-			g.imagePreview3.SetContent(widget.NewLabel("No image selected"))
+			g.imagePreview3.SetContent(widget.NewLabel("No folder selected"))
 		}
 		return
 	}
@@ -432,20 +433,50 @@ func (g *JaqenGUI) updateImagePreviews(imgDir string) {
 	for i, preview := range previews {
 		if preview != nil {
 			if i < len(images) {
-				// Load and display the image
+				// Load and display the actual image
 				imagePath := images[i]
 				imageName := filepath.Base(imagePath)
 				
-				// Create a container with image and filename
-				imageContainer := container.NewVBox(
-					widget.NewLabel(imageName),
-					widget.NewLabel(fmt.Sprintf("Size: %dx%d", 100, 100)), // Placeholder size
-				)
+				// Load the image file
+				imageFile, err := os.Open(imagePath)
+				if err != nil {
+					preview.SetContent(widget.NewLabel(fmt.Sprintf("Error loading\n%s", imageName)))
+					continue
+				}
 				
+				// Read the file content
+				fileInfo, err := imageFile.Stat()
+				if err != nil {
+					imageFile.Close()
+					preview.SetContent(widget.NewLabel(fmt.Sprintf("Error loading\n%s", imageName)))
+					continue
+				}
+				
+				imageData := make([]byte, fileInfo.Size())
+				_, err = imageFile.Read(imageData)
+				imageFile.Close()
+				
+				if err != nil {
+					preview.SetContent(widget.NewLabel(fmt.Sprintf("Error loading\n%s", imageName)))
+					continue
+				}
+				
+				// Create image resource
+				imageResource := fyne.NewStaticResource(imageName, imageData)
+				
+				// Create canvas image for proper scaling
+				imageWidget := canvas.NewImageFromResource(imageResource)
+				imageWidget.FillMode = canvas.ImageFillContain
+				imageWidget.SetMinSize(fyne.NewSize(300, 300))
+				
+				// Create a centered container
+				imageContainer := container.NewCenter(imageWidget)
+				
+				// Show the image container
 				preview.SetContent(imageContainer)
 			} else {
 				// No more images available
-				preview.SetContent(widget.NewLabel("No image available"))
+				preview.SetContent(widget.NewLabel("No image\navailable"))
 			}
 		}
 	}
@@ -454,6 +485,7 @@ func (g *JaqenGUI) updateImagePreviews(imgDir string) {
 func (g *JaqenGUI) createMainContent() *fyne.Container {
 	// Image folder selection (Step 1)
 	imgLabel := widget.NewLabel("Image Folder:")
+	imgLabel.TextStyle.Bold = true
 	g.imgDirEntry = widget.NewEntry()
 	g.imgDirEntry.SetPlaceHolder("Select the folder containing your face images...")
 	g.imgDirEntry.OnChanged = func(text string) { 
@@ -465,12 +497,14 @@ func (g *JaqenGUI) createMainContent() *fyne.Container {
 	
 	// Detected files section (Step 2)
 	xmlLabel := widget.NewLabel("Config XML File:")
+	xmlLabel.TextStyle.Bold = true
 	g.xmlPathEntry = widget.NewEntry()
 	g.xmlPathEntry.SetPlaceHolder("Will be auto-detected from image folder...")
 	g.xmlPathEntry.OnChanged = func(_ string) { g.autoSaveConfig() }
 	xmlButton := g.createFileSelector(g.xmlPathEntry, "Select XML File", "xml")
 	
 	rtfLabel := widget.NewLabel("RTF Player File:")
+	rtfLabel.TextStyle.Bold = true
 	g.rtfPathEntry = widget.NewEntry()
 	g.rtfPathEntry.SetPlaceHolder("Will be auto-detected from image folder...")
 	g.rtfPathEntry.OnChanged = func(_ string) { g.autoSaveConfig() }
@@ -478,6 +512,7 @@ func (g *JaqenGUI) createMainContent() *fyne.Container {
 	
 	// FM Version (Step 3)
 	fmVersionLabel := widget.NewLabel("Football Manager Version:")
+	fmVersionLabel.TextStyle.Bold = true
 	g.fmVersionSelect = widget.NewSelect([]string{"2024", "2023", "2022", "2021", "2020"}, nil)
 	g.fmVersionSelect.SetSelected("2024")
 	g.fmVersionSelect.OnChanged = func(_ string) { g.autoSaveConfig() }
@@ -492,35 +527,60 @@ func (g *JaqenGUI) createMainContent() *fyne.Container {
 	g.runButton = widget.NewButton("Assign Face Mappings", g.runProcessing)
 	g.runButton.Importance = widget.HighImportance
 	
-	// Create image preview cards
-	g.imagePreview1 = widget.NewCard("Preview 1", "", widget.NewLabel("No image selected"))
-	g.imagePreview2 = widget.NewCard("Preview 2", "", widget.NewLabel("No image selected"))
-	g.imagePreview3 = widget.NewCard("Preview 3", "", widget.NewLabel("No image selected"))
+	// Initialize checkboxes if they don't exist (for main window)
+	if g.preserveCheck == nil {
+		g.preserveCheck = widget.NewCheck("Preserve existing mappings", nil)
+		g.preserveCheck.SetChecked(true)
+		g.preserveCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
+	}
+	if g.allowDuplicateCheck == nil {
+		g.allowDuplicateCheck = widget.NewCheck("Allow duplicate mappings", nil)
+		g.allowDuplicateCheck.SetChecked(true)
+		g.allowDuplicateCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
+	}
 	
-	// Set fixed sizes for preview cards
-	previewSize := fyne.NewSize(150, 120)
+	// Create image preview cards with better styling - no titles
+	g.imagePreview1 = widget.NewCard("", "", widget.NewLabel("No folder selected"))
+	g.imagePreview2 = widget.NewCard("", "", widget.NewLabel("No folder selected"))
+	g.imagePreview3 = widget.NewCard("", "", widget.NewLabel("No folder selected"))
+	
+	previewSize := fyne.NewSize(350, 350)
 	g.imagePreview1.Resize(previewSize)
 	g.imagePreview2.Resize(previewSize)
 	g.imagePreview3.Resize(previewSize)
 	
-	return container.NewVBox(
-		widget.NewCard("Setup", "", container.NewVBox(
-			container.NewBorder(nil, nil, imgLabel, imgButton, g.imgDirEntry),
-			widget.NewSeparator(),
-			container.NewBorder(nil, nil, xmlLabel, xmlButton, g.xmlPathEntry),
-			container.NewBorder(nil, nil, rtfLabel, rtfButton, g.rtfPathEntry),
-			container.NewBorder(nil, nil, fmVersionLabel, nil, g.fmVersionSelect),
-		)),
-		widget.NewCard("Image Preview", "", container.NewHBox(
+	// Create a more organized layout with better spacing
+	setupCard := widget.NewCard("Configuration", "", container.NewVBox(
+		container.NewBorder(nil, nil, imgLabel, imgButton, g.imgDirEntry),
+		widget.NewSeparator(),
+		container.NewBorder(nil, nil, xmlLabel, xmlButton, g.xmlPathEntry),
+		container.NewBorder(nil, nil, rtfLabel, rtfButton, g.rtfPathEntry),
+		container.NewBorder(nil, nil, fmVersionLabel, nil, g.fmVersionSelect),
+	))
+	
+	// Create image preview section with better layout
+	imagePreviewCard := widget.NewCard("Image Preview", "Sample images from your selected folder", 
+		container.NewHBox(
 			g.imagePreview1,
+			widget.NewSeparator(),
 			g.imagePreview2,
+			widget.NewSeparator(),
 			g.imagePreview3,
-		)),
-		widget.NewCard("Actions", "", container.NewVBox(
-			g.statusLabel,
-			g.progressBar,
-			g.runButton,
-		)),
+		))
+	
+	// Create action section with better styling
+	actionCard := widget.NewCard("Actions", "", container.NewVBox(
+		g.statusLabel,
+		g.progressBar,
+		container.NewCenter(g.runButton),
+	))
+	
+	return container.NewVBox(
+		setupCard,
+		widget.NewSeparator(),
+		imagePreviewCard,
+		widget.NewSeparator(),
+		actionCard,
 	)
 }
 
@@ -574,13 +634,14 @@ func (g *JaqenGUI) createMappingOverrideSection() *fyne.Container {
 	)
 	
 	// Set a reasonable size for the list
-	g.mappingOverrideList.Resize(fyne.NewSize(450, 250))
+	g.mappingOverrideList.Resize(fyne.NewSize(550, 300))
 
 	addButton := widget.NewButton("Add Mapping Override", g.addMappingOverride)
 
 	return container.NewVBox(
 		widget.NewCard("Mapping Overrides", "", container.NewVBox(
 			widget.NewLabel("Country Code → Ethnic Group"),
+			widget.NewLabel("Add custom mappings for countries not recognized by default.\nAvailable ethnicities: African, Asian, Caucasian, Central European, EECA, Italmed, MENA, MESA, SAMed, Scandinavian, Seasian, South American, SpanMed, YugoGreek"),
 			g.mappingOverrideList,
 			addButton,
 		)),
@@ -596,11 +657,14 @@ func (g *JaqenGUI) editMappingOverride(country, ethnic string) {
 	countryEntry.SetText(country)
 	countryEntry.SetPlaceHolder("Country Code (e.g., ENG)")
 
-	ethnicSelect := widget.NewSelect([]string{
+	// Get all available ethnicities from the mapper package
+	availableEthnicities := []string{
 		"African", "Asian", "Caucasian", "Central European", "EECA",
 		"Italmed", "MENA", "MESA", "SAMed", "Scandinavian",
 		"Seasian", "South American", "SpanMed", "YugoGreek",
-	}, nil)
+	}
+	
+	ethnicSelect := widget.NewSelect(availableEthnicities, nil)
 	ethnicSelect.SetSelected(ethnic)
 
 	form := &widget.Form{
@@ -788,7 +852,9 @@ func (g *JaqenGUI) processFiles() {
 		err := mapper.OverrideNationEthnicMapping(g.mappingOverrides)
 		if err != nil {
 			fyne.Do(func() {
-				dialog.ShowError(fmt.Errorf("Error applying mapping overrides: %w", err), g.window)
+				// Create a detailed error message
+				errorMsg := fmt.Sprintf("Error applying mapping overrides:\n\n%v\n\nPlease check your mapping overrides in Settings and ensure all ethnic groups are valid.", err)
+				dialog.ShowError(fmt.Errorf(errorMsg), g.window)
 			})
 			return
 		}
@@ -826,7 +892,16 @@ func (g *JaqenGUI) processFiles() {
 	players, err := mapper.GetPlayers(g.rtfPathEntry.Text)
 	if err != nil {
 		fyne.Do(func() {
-			dialog.ShowError(fmt.Errorf("Error reading players: %w", err), g.window)
+			// Check if this is an ethnicity-related error
+			errorStr := err.Error()
+			if strings.Contains(errorStr, "ethnic not found for country initials") || 
+			   strings.Contains(errorStr, "ethnic value not found") {
+				// Create a detailed error message for ethnicity issues
+				errorMsg := fmt.Sprintf("Ethnicity Detection Error:\n\n%v\n\nThis means some countries in your RTF file are not recognized.\n\nYou can add custom mappings in Settings → Mapping Overrides to fix this.", err)
+				dialog.ShowError(fmt.Errorf(errorMsg), g.window)
+			} else {
+				dialog.ShowError(fmt.Errorf("Error reading players: %w", err), g.window)
+			}
 		})
 		return
 	}
@@ -839,11 +914,15 @@ func (g *JaqenGUI) processFiles() {
 	// Process each player
 	totalPlayers := len(players)
 	for i, player := range players {
-		if g.preserveCheck.Checked && mapping.Exist(player.ID) {
+		if g.preserveCheck != nil && g.preserveCheck.Checked && mapping.Exist(player.ID) {
 			continue
 		}
 
-		imgFilename, err := imagePool.GetRandomImagePath(player.Ethnic, !g.allowDuplicateCheck.Checked)
+		allowDuplicates := true
+		if g.allowDuplicateCheck != nil {
+			allowDuplicates = g.allowDuplicateCheck.Checked
+		}
+		imgFilename, err := imagePool.GetRandomImagePath(player.Ethnic, !allowDuplicates)
 		if err != nil {
 			log.Printf("Error getting image for player %s: %v", player.ID, err)
 			continue
