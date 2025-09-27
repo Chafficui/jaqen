@@ -57,8 +57,8 @@ func NewJaqenGUI() *JaqenGUI {
 	myApp := app.NewWithID("com.jaqen.footballmanager")
 	myApp.SetIcon(theme.DocumentIcon())
 	
-	window := myApp.NewWindow("Jaqen - Football Manager Face Manager")
-	window.Resize(fyne.NewSize(1400, 900)) // Much larger window for bigger images
+	window := myApp.NewWindow("Jaqen NewGen - Football Manager Face Manager")
+	window.Resize(fyne.NewSize(1400, 900))
 	window.CenterOnScreen()
 
 	return &JaqenGUI{
@@ -304,7 +304,7 @@ func (g *JaqenGUI) createFileSelector(entry *widget.Entry, title string, fileTyp
 }
 
 func (g *JaqenGUI) createHeaderBar() *fyne.Container {
-	title := widget.NewLabel("Jaqen - Football Manager Face Manager")
+	title := widget.NewLabel("Jaqen NewGen - Football Manager Face Manager")
 	title.TextStyle.Bold = true
 	
 	settingsButton := widget.NewButtonWithIcon("", theme.SettingsIcon(), g.openSettings)
@@ -1013,6 +1013,6 @@ func runGUI(cmd *cobra.Command, args []string) {
 var guiCmd = &cobra.Command{
 	Use:   "gui",
 	Short: "Launch the graphical user interface",
-	Long:  "Launch the modern GUI for Jaqen Football Manager face management",
+	Long:  "Launch the modern GUI for Jaqen NewGen Football Manager face management",
 	Run:   runGUI,
 }
