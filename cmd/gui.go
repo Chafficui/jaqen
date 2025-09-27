@@ -28,7 +28,6 @@ import (
 type JaqenGUI struct {
 	app            fyne.App
 	window         fyne.Window
-	mainContainer  *fyne.Container
 	settingsWindow fyne.Window
 
 	// Main content
@@ -201,7 +200,7 @@ func (g *JaqenGUI) saveConfig() {
 	err := internal.WriteConfig(g.config, configPath)
 	if err != nil {
 		fyne.Do(func() {
-			dialog.ShowError(fmt.Errorf("Error saving config: %w", err), g.window)
+			dialog.ShowError(fmt.Errorf("error saving config: %w", err), g.window)
 		})
 	}
 }
@@ -692,99 +691,9 @@ func (g *JaqenGUI) editMappingOverride(country, ethnic string) {
 			g.autoSaveConfig() // Save the new mapping
 		} else if confirmed && (countryEntry.Text == "" || ethnicSelect.Selected == "") {
 			// Show error if user tries to save empty values
-			dialog.ShowError(fmt.Errorf("Country code and ethnic group are required"), targetWindow)
+			dialog.ShowError(fmt.Errorf("country code and ethnic group are required"), targetWindow)
 		}
 	}, targetWindow)
-}
-
-func (g *JaqenGUI) createInputSection() *fyne.Container {
-	// XML File Selection
-	xmlLabel := widget.NewLabel("XML Config File:")
-	g.xmlPathEntry = widget.NewEntry()
-	g.xmlPathEntry.SetText(internal.DefaultXMLPath)
-	g.xmlPathEntry.OnChanged = func(_ string) { g.autoSaveConfig() }
-	xmlButton := g.createFileSelector(g.xmlPathEntry, "Select XML File", "xml")
-
-	// RTF File Selection
-	rtfLabel := widget.NewLabel("RTF Player File:")
-	g.rtfPathEntry = widget.NewEntry()
-	g.rtfPathEntry.SetText(internal.DefaultRTFPath)
-	g.rtfPathEntry.OnChanged = func(_ string) { g.autoSaveConfig() }
-	rtfButton := g.createFileSelector(g.rtfPathEntry, "Select RTF File", "rtf")
-
-	// Image Directory Selection
-	imgLabel := widget.NewLabel("Image Directory:")
-	g.imgDirEntry = widget.NewEntry()
-	g.imgDirEntry.SetText(internal.DefaultImagesPath)
-	g.imgDirEntry.OnChanged = func(_ string) { g.autoSaveConfig() }
-	imgButton := g.createFileSelector(g.imgDirEntry, "Select Image Directory", "directory")
-
-	return container.NewVBox(
-		widget.NewCard("File Selection", "", container.NewVBox(
-			container.NewBorder(nil, nil, xmlLabel, xmlButton, g.xmlPathEntry),
-			container.NewBorder(nil, nil, rtfLabel, rtfButton, g.rtfPathEntry),
-			container.NewBorder(nil, nil, imgLabel, imgButton, g.imgDirEntry),
-		)),
-	)
-}
-
-func (g *JaqenGUI) createOptionsSection() *fyne.Container {
-	// Checkboxes
-	g.preserveCheck = widget.NewCheck("Preserve existing mappings", nil)
-	g.preserveCheck.SetChecked(true) // Default to true
-	g.preserveCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
-
-	g.allowDuplicateCheck = widget.NewCheck("Allow duplicate images", nil)
-	g.allowDuplicateCheck.SetChecked(true) // Default to true
-	g.allowDuplicateCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
-
-	// FM Version Selection
-	fmVersionLabel := widget.NewLabel("Football Manager Version:")
-	g.fmVersionSelect = widget.NewSelect([]string{"2024", "2023", "2022", "2021", "2020"}, nil)
-	g.fmVersionSelect.SetSelected(internal.DefaultFMVersion)
-	g.fmVersionSelect.OnChanged = func(_ string) { g.autoSaveConfig() }
-
-	return container.NewVBox(
-		widget.NewCard("Options", "", container.NewVBox(
-			g.preserveCheck,
-			g.allowDuplicateCheck,
-			container.NewBorder(nil, nil, fmVersionLabel, nil, g.fmVersionSelect),
-		)),
-	)
-}
-
-func (g *JaqenGUI) createActionSection() *fyne.Container {
-	g.statusLabel = widget.NewLabel("Ready to process files...")
-	g.statusLabel.Wrapping = fyne.TextWrapWord
-
-	g.progressBar = widget.NewProgressBar()
-	g.progressBar.Hide()
-
-	g.runButton = widget.NewButton("Process Files", g.runProcessing)
-	g.runButton.Importance = widget.HighImportance
-
-	formatButton := widget.NewButton("Format Config", g.formatConfig)
-
-	return container.NewVBox(
-		widget.NewCard("Actions", "", container.NewVBox(
-			g.statusLabel,
-			g.progressBar,
-			container.NewHBox(g.runButton, formatButton),
-		)),
-	)
-}
-
-func (g *JaqenGUI) formatConfig() {
-	g.statusLabel.SetText("Formatting config file...")
-	g.progressBar.Show()
-	g.progressBar.SetValue(0.5)
-
-	// Import the format functionality from cmd/format.go
-	// For now, we'll show a simple message
-	dialog.ShowInformation("Config Format", "Config file formatting would be implemented here", g.window)
-
-	g.progressBar.Hide()
-	g.statusLabel.SetText("Config formatting completed.")
 }
 
 func (g *JaqenGUI) runProcessing() {
@@ -798,7 +707,7 @@ func (g *JaqenGUI) runProcessing() {
 		return
 	}
 	if g.imgDirEntry.Text == "" {
-		dialog.ShowError(fmt.Errorf("Image directory path is required"), g.window)
+		dialog.ShowError(fmt.Errorf("image directory path is required"), g.window)
 		return
 	}
 
@@ -836,7 +745,7 @@ func (g *JaqenGUI) processFiles() {
 		_, err := internal.ReadConfig(configPath)
 		if err != nil {
 			fyne.Do(func() {
-				dialog.ShowError(fmt.Errorf("Error reading config: %w", err), g.window)
+				dialog.ShowError(fmt.Errorf("error reading config: %w", err), g.window)
 			})
 			return
 		}
@@ -854,8 +763,7 @@ func (g *JaqenGUI) processFiles() {
 		if err != nil {
 			fyne.Do(func() {
 				// Create a detailed error message
-				errorMsg := fmt.Sprintf("Error applying mapping overrides:\n\n%v\n\nPlease check your mapping overrides in Settings and ensure all ethnic groups are valid.", err)
-				dialog.ShowError(fmt.Errorf(errorMsg), g.window)
+				dialog.ShowError(fmt.Errorf("error applying mapping overrides:\n\n%v\n\nPlease check your mapping overrides in Settings and ensure all ethnic groups are valid", err), g.window)
 			})
 			return
 		}
@@ -865,7 +773,7 @@ func (g *JaqenGUI) processFiles() {
 	mapping, err := mapper.NewMapping(g.xmlPathEntry.Text, g.fmVersionSelect.Selected)
 	if err != nil {
 		fyne.Do(func() {
-			dialog.ShowError(fmt.Errorf("Error creating mapping: %w", err), g.window)
+			dialog.ShowError(fmt.Errorf("error creating mapping: %w", err), g.window)
 		})
 		return
 	}
@@ -879,7 +787,7 @@ func (g *JaqenGUI) processFiles() {
 	imagePool, err := mapper.NewImagePool(g.imgDirEntry.Text)
 	if err != nil {
 		fyne.Do(func() {
-			dialog.ShowError(fmt.Errorf("Error loading image pool: %w", err), g.window)
+			dialog.ShowError(fmt.Errorf("error loading image pool: %w", err), g.window)
 		})
 		return
 	}
@@ -898,10 +806,9 @@ func (g *JaqenGUI) processFiles() {
 			if strings.Contains(errorStr, "ethnic not found for country initials") ||
 				strings.Contains(errorStr, "ethnic value not found") {
 				// Create a detailed error message for ethnicity issues
-				errorMsg := fmt.Sprintf("Ethnicity Detection Error:\n\n%v\n\nThis means some countries in your RTF file are not recognized.\n\nYou can add custom mappings in Settings → Mapping Overrides to fix this.", err)
-				dialog.ShowError(fmt.Errorf(errorMsg), g.window)
+				dialog.ShowError(fmt.Errorf("ethnicity detection error:\n\n%v\n\nThis means some countries in your RTF file are not recognized.\n\nYou can add custom mappings in Settings → Mapping Overrides to fix this", err), g.window)
 			} else {
-				dialog.ShowError(fmt.Errorf("Error reading players: %w", err), g.window)
+				dialog.ShowError(fmt.Errorf("error reading players: %w", err), g.window)
 			}
 		})
 		return
@@ -957,14 +864,14 @@ func (g *JaqenGUI) processFiles() {
 	// Save mapping
 	if err := mapping.Save(); err != nil {
 		fyne.Do(func() {
-			dialog.ShowError(fmt.Errorf("Error saving mapping: %w", err), g.window)
+			dialog.ShowError(fmt.Errorf("error saving mapping: %w", err), g.window)
 		})
 		return
 	}
 
 	if err := mapping.Write(g.xmlPathEntry.Text); err != nil {
 		fyne.Do(func() {
-			dialog.ShowError(fmt.Errorf("Error writing XML file: %w", err), g.window)
+			dialog.ShowError(fmt.Errorf("error writing XML file: %w", err), g.window)
 		})
 		return
 	}
