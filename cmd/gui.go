@@ -7,8 +7,10 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -49,6 +51,9 @@ type JaqenGUI struct {
 	imagePreview1 *widget.Card
 	imagePreview2 *widget.Card
 	imagePreview3 *widget.Card
+
+	// State tracking
+	hasShownRTFPopup bool
 
 	config internal.JaqenConfig
 }
@@ -227,13 +232,26 @@ func (g *JaqenGUI) detectPathsFromImageFolder(imgPath string) {
 	configPath := filepath.Join(imgPath, "config.xml")
 	if _, err := os.Stat(configPath); err == nil {
 		g.xmlPathEntry.SetText(configPath)
+	} else {
+		// config.xml doesn't exist, generate it
+		g.autoGenerateConfigXML(imgPath)
+		g.xmlPathEntry.SetText(configPath)
 	}
 
 	// Try to find RTF file in common locations
 	rtfPath := g.findRTFFile(imgPath)
 	if rtfPath != "" {
 		g.rtfPathEntry.SetText(rtfPath)
+	} else {
+		// RTF file not found, show instructions popup only once per session
+		if !g.hasShownRTFPopup {
+			g.showRTFInstructionsPopup()
+			g.hasShownRTFPopup = true
+		}
 	}
+
+	// Auto-distribute views and filters to the FM directory
+	g.autoDistributeViewsAndFilters(imgPath)
 }
 
 func (g *JaqenGUI) extractFMVersion(imgPath string) string {
@@ -271,6 +289,109 @@ func (g *JaqenGUI) findRTFFile(imgPath string) string {
 		}
 	}
 	return ""
+}
+
+// autoDistributeViewsAndFilters automatically distributes views and filters to the FM directory
+func (g *JaqenGUI) autoDistributeViewsAndFilters(imgPath string) {
+	go func() {
+		// Find the FM directory from the image path
+		fmDir, err := mapper.FindFMDirectoryFromImagePath(imgPath)
+		if err != nil {
+			// FM directory not found, that's okay - user might be using a custom setup
+			return
+		}
+
+		// Distribute views and filters
+		err = mapper.DistributeViewsAndFilters(fmDir)
+		if err != nil {
+			// Log error but don't show to user - this is a background operation
+			fmt.Printf("Warning: Failed to distribute views/filters: %v\n", err)
+			return
+		}
+
+		// Update status to show success
+		fyne.Do(func() {
+			if g.statusLabel != nil {
+				g.statusLabel.SetText(fmt.Sprintf("Views and filters distributed to FM directory: %s", fmDir.BasePath))
+			}
+		})
+	}()
+}
+
+// autoGenerateConfigXML automatically generates a config.xml file if it doesn't exist
+func (g *JaqenGUI) autoGenerateConfigXML(imgPath string) {
+	go func() {
+		err := mapper.GenerateConfigXML(imgPath)
+		if err != nil {
+			// Log error but don't show to user - this is a background operation
+			fmt.Printf("Warning: Failed to generate config.xml: %v\n", err)
+			return
+		}
+
+		// Update status to show success
+		fyne.Do(func() {
+			if g.statusLabel != nil {
+				g.statusLabel.SetText(fmt.Sprintf("Generated config.xml in: %s", imgPath))
+			}
+		})
+	}()
+}
+
+// showRTFInstructionsPopup displays complete Jaqen NewGen instructions
+func (g *JaqenGUI) showRTFInstructionsPopup() {
+	// Create a custom dialog with video link and instructions
+	videoLabel := widget.NewLabel("📺 Watch the Tutorial Video:")
+	videoLabel.TextStyle.Bold = true
+
+	videoButton := widget.NewButton("🎥 Jaqen NewGen Tutorial", func() {
+		// Open YouTube link in default browser
+		cmd := exec.Command("xdg-open", "https://youtu.be/aHnrpfH--ic")
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command("cmd", "/c", "start", "https://youtu.be/aHnrpfH--ic")
+		} else if runtime.GOOS == "darwin" {
+			cmd = exec.Command("open", "https://youtu.be/aHnrpfH--ic")
+		}
+		cmd.Run()
+	})
+	videoButton.Importance = widget.HighImportance
+
+	instructions := `# Quick Setup Guide
+
+## 1. Export RTF from Football Manager
+- Go to Scouting → Players in Range
+- Import "SCRIPT FACES player search" view
+- Apply "is newgen search filter"
+- Select all (Ctrl+A) → Print to text file (Ctrl+P)
+- Save as "newgen.rtf" in your image folder
+
+## 2. Configure Jaqen
+- Select your image directory
+- Choose settings (Preserve, Allow Duplicates, etc.)
+- Click "Assign Face Mappings"
+
+## 3. Apply in Football Manager
+- Restart Football Manager
+- Newgen faces will use assigned images
+
+**Note:** Views, filters, and config.xml are auto-distributed/generated.`
+
+	content := widget.NewRichTextFromMarkdown(instructions)
+	content.Wrapping = fyne.TextWrapWord
+
+	// Combine video button and instructions
+	videoContainer := container.NewVBox(videoLabel, videoButton)
+	instructionsContainer := container.NewScroll(content)
+	instructionsContainer.SetMinSize(fyne.NewSize(600, 300))
+
+	mainContainer := container.NewVBox(
+		videoContainer,
+		widget.NewSeparator(),
+		instructionsContainer,
+	)
+
+	dialog := dialog.NewCustom("Jaqen NewGen Instructions", "Close", mainContainer, g.window)
+	dialog.Resize(fyne.NewSize(650, 500))
+	dialog.Show()
 }
 
 func (g *JaqenGUI) createFileSelector(entry *widget.Entry, title string, fileType string) *widget.Button {

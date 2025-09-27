@@ -1,8 +1,0 @@
-preserve = true
-xml_path = "/home/felixb/Games/Heroic/Prefixes/default/Football Manager 2022/drive_c/users/steamuser/Documents/Sports Interactive/Football Manager 2022/graphics/DF11 NewGen - 'Fantasy Mix' - V2/config.xml"
-rtf_path = "/home/felixb/Games/Heroic/Prefixes/default/Football Manager 2022/drive_c/users/steamuser/Documents/Sports Interactive/Football Manager 2022/graphics/DF11 NewGen - 'Fantasy Mix' - V2/newgen.rtf"
-img_path = "/home/felixb/Games/Heroic/Prefixes/default/Football Manager 2022/drive_c/users/steamuser/Documents/Sports Interactive/Football Manager 2022/graphics/DF11 NewGen - 'Fantasy Mix' - V2"
-fm_version = '2022'
-allow_duplicate = true
-
-[mapping_override]
