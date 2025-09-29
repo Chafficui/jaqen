@@ -20,7 +20,11 @@ A modern GUI application for creating and managing image file mappings to face p
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/chafficui/jaqen-newgen-tool)
 
 
-[![Jaqen NewGen Tool Tutorial](https://img.youtube.com/vi/aHnrpfH--ic/maxresdefault.jpg)](https://www.youtube.com/watch?v=aHnrpfH--ic)
+## 📺 Watch Tutorial Video
+
+[![▶️ Jaqen NewGen Tool Tutorial Video](https://img.youtube.com/vi/aHnrpfH--ic/maxresdefault.jpg)](https://www.youtube.com/watch?v=aHnrpfH--ic)
+
+*Click the thumbnail above to watch the complete setup tutorial*
 
 </div>
 
