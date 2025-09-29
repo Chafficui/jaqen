@@ -34,11 +34,11 @@ Jaqen NewGen Tool is a modern, cross-platform GUI application for managing Footb
 
 ### Key Features
 
+- **🚀 One-Click Setup** - Auto-distributes views/filters to all FM installations on startup
 - **🔄 Auto-Detection** - Automatically finds FM installations and paths
-- **📁 File Management** - Auto-generates config.xml and distributes views/filters
+- **📁 File Management** - Auto-generates config.xml and detects RTF files
 - **🌍 Cross-Platform** - Works on Windows, macOS, and Linux
 - **⚙️ Smart Mapping** - Maps nations to ethnic groups with override support
-- **🎯 Easy Setup** - Guided workflow with helpful instructions
 - **📊 Visual Progress** - Real-time feedback during processing
 
 ## Quick Start
@@ -54,19 +54,23 @@ Jaqen NewGen Tool is a modern, cross-platform GUI application for managing Footb
 
 ### 2. Setup Football Manager
 
-1. **Export RTF from Football Manager:**
-   - Go to Scouting → Players in Range
-   - Import "SCRIPT FACES player search" view (auto-distributed)
-   - Apply "is newgen search filter" (auto-distributed)
-   - Select all players (Ctrl+A) → Print to text file (Ctrl+P)
-   - Save as "newgen.rtf" in your image folder
+1. **Install Face Pack:**
+   - Download your preferred face pack
+   - Extract it to your FM graphics folder (e.g., `Documents/Sports Interactive/Football Manager 2024/graphics/`)
 
-2. **Configure Jaqen NewGen Tool:**
-   - Select your image directory (face pack folder)
+2. **Export RTF from Football Manager:**
+   - Go to Scouting → Players in Range
+   - Import "SCRIPT FACES player search" view (auto-distributed by Jaqen)
+   - Apply "is newgen search filter" (auto-distributed by Jaqen)
+   - Select all players (Ctrl+A) → Print to text file (Ctrl+P)
+   - Save as "newgen.rtf" in your face pack folder
+
+3. **Configure Jaqen NewGen Tool:**
+   - Select your face pack directory
    - Choose settings (Preserve, Allow Duplicates, etc.)
    - Click "Assign Face Mappings"
 
-3. **Apply in Football Manager:**
+4. **Apply in Football Manager:**
    - Restart Football Manager
    - Newgen faces will use assigned images
 

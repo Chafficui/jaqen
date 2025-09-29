@@ -82,9 +82,148 @@ func (g *JaqenGUI) setupLogger(imageDir string) error {
 		return fmt.Errorf("failed to create log file: %v", err)
 	}
 
+	// Close previous logger if it exists
+	if g.logger != nil {
+		// Note: We can't close the previous log file easily, but the new one will be used going forward
+	}
+
 	g.logger = log.New(logFile, "", log.LstdFlags)
 	g.logger.Printf("Jaqen NewGen Tool started - %s", time.Now().Format("2006-01-02 15:04:05"))
 	return nil
+}
+
+// setupStartupLogger creates a logger for startup operations in the current directory
+func (g *JaqenGUI) setupStartupLogger() {
+	if g.logger != nil {
+		return // Already set up
+	}
+
+	logPath := "jaqen-startup.log"
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		// If we can't create log file, just use stdout
+		g.logger = log.New(os.Stdout, "", log.LstdFlags)
+		return
+	}
+
+	g.logger = log.New(logFile, "", log.LstdFlags)
+	g.logger.Printf("Jaqen NewGen Tool startup - %s", time.Now().Format("2006-01-02 15:04:05"))
+}
+
+// autoDistributeOnStartup automatically distributes views and filters to all FM installations
+func (g *JaqenGUI) autoDistributeOnStartup() {
+	// Find all FM installations and distribute views/filters
+	fmDirs := g.findAllFMInstallations()
+
+	// Log to a temporary log file in the current directory for startup operations
+	g.setupStartupLogger()
+
+	if g.logger != nil {
+		g.logger.Printf("Starting auto-distribution of views/filters to %d FM installation(s)", len(fmDirs))
+	}
+
+	for _, fmDir := range fmDirs {
+		if err := mapper.DistributeViewsAndFilters(fmDir); err != nil {
+			// Log error but don't show to user - this is a background operation
+			fmt.Printf("Warning: Failed to distribute files to %s: %v\n", fmDir.BasePath, err)
+			if g.logger != nil {
+				g.logger.Printf("Error distributing to %s: %v", fmDir.BasePath, err)
+			}
+		} else if g.logger != nil {
+			g.logger.Printf("Successfully distributed views/filters to: %s", fmDir.BasePath)
+		}
+	}
+
+	if len(fmDirs) > 0 {
+		fmt.Printf("Auto-distributed views/filters to %d FM installation(s)\n", len(fmDirs))
+		if g.logger != nil {
+			g.logger.Printf("Auto-distribution completed for %d FM installation(s)", len(fmDirs))
+		}
+		fyne.Do(func() {
+			if g.statusLabel != nil {
+				g.statusLabel.SetText(fmt.Sprintf("Auto-distributed views/filters to %d FM installation(s)", len(fmDirs)))
+			}
+		})
+	}
+}
+
+// findAllFMInstallations searches for all FM installations on the system
+func (g *JaqenGUI) findAllFMInstallations() []*mapper.FMDirectory {
+	var fmDirs []*mapper.FMDirectory
+	seenPaths := make(map[string]bool) // Prevent duplicates
+
+	// Common FM installation paths to check
+	searchPaths := []string{
+		// Linux Steam paths
+		filepath.Join(os.Getenv("HOME"), ".steam/debian-installation/steamapps/compatdata"),
+		filepath.Join(os.Getenv("HOME"), ".local/share/Steam/steamapps/compatdata"),
+		// Linux Heroic/Epic paths
+		filepath.Join(os.Getenv("HOME"), "Games/Heroic/Prefixes/default"),
+		filepath.Join(os.Getenv("HOME"), ".local/share/Steam/steamapps/common"),
+		// Windows paths (if running on Windows)
+		filepath.Join(os.Getenv("USERPROFILE"), "Documents", "Sports Interactive"),
+		// macOS paths (if running on macOS)
+		filepath.Join(os.Getenv("HOME"), "Documents", "Sports Interactive"),
+	}
+
+	for _, basePath := range searchPaths {
+		if _, err := os.Stat(basePath); err == nil {
+			// Search for FM directories in this path
+			g.searchFMInPath(basePath, &fmDirs, seenPaths)
+		}
+	}
+
+	return fmDirs
+}
+
+// searchFMInPath recursively searches for FM installations in a given path
+func (g *JaqenGUI) searchFMInPath(searchPath string, fmDirs *[]*mapper.FMDirectory, seenPaths map[string]bool) {
+	entries, err := os.ReadDir(searchPath)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			entryPath := filepath.Join(searchPath, entry.Name())
+
+			// Check if this looks like an FM installation
+			if g.isLikelyFMInstallation(entryPath) {
+				// Try to find the graphics directory
+				if fmDir, err := mapper.FindFMDirectoryFromImagePath(entryPath); err == nil {
+					// Check if we've already seen this path to prevent duplicates
+					if !seenPaths[fmDir.BasePath] {
+						*fmDirs = append(*fmDirs, fmDir)
+						seenPaths[fmDir.BasePath] = true
+					}
+				}
+			}
+
+			// Recursively search subdirectories (but limit depth to prevent infinite recursion)
+			if g.shouldContinueSearch(entryPath, searchPath) {
+				g.searchFMInPath(entryPath, fmDirs, seenPaths)
+			}
+		}
+	}
+}
+
+// isLikelyFMInstallation checks if a path looks like an FM installation
+func (g *JaqenGUI) isLikelyFMInstallation(path string) bool {
+	pathLower := strings.ToLower(path)
+	return strings.Contains(pathLower, "football manager") ||
+		strings.Contains(pathLower, "sports interactive")
+}
+
+// shouldContinueSearch determines if we should continue searching in a subdirectory
+func (g *JaqenGUI) shouldContinueSearch(entryPath, searchPath string) bool {
+	// Don't go too deep (max 4 levels from search path)
+	relPath, err := filepath.Rel(searchPath, entryPath)
+	if err != nil {
+		return false
+	}
+
+	depth := strings.Count(relPath, string(os.PathSeparator))
+	return depth < 4
 }
 
 func (g *JaqenGUI) loadConfig() {
@@ -275,8 +414,6 @@ func (g *JaqenGUI) detectPathsFromImageFolder(imgPath string) {
 		}
 	}
 
-	// Auto-distribute views and filters to the FM directory
-	g.autoDistributeViewsAndFilters(imgPath)
 }
 
 func (g *JaqenGUI) extractFMVersion(imgPath string) string {
@@ -1057,6 +1194,9 @@ func (g *JaqenGUI) processFiles() {
 func (g *JaqenGUI) ShowAndRun() {
 	// Initialize config
 	g.loadConfig()
+
+	// Auto-distribute views and filters to all FM installations on startup
+	go g.autoDistributeOnStartup()
 
 	// Create main layout
 	content := container.NewVBox(
