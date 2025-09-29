@@ -31,6 +31,7 @@ type JaqenGUI struct {
 	app            fyne.App
 	window         fyne.Window
 	settingsWindow fyne.Window
+	logger         *log.Logger
 
 	// Main content
 	imgDirEntry     *widget.Entry
@@ -71,6 +72,19 @@ func NewJaqenGUI() *JaqenGUI {
 		window:           window,
 		mappingOverrides: make(map[string]string),
 	}
+}
+
+// setupLogger creates a logger that writes to jaqen.log in the specified directory
+func (g *JaqenGUI) setupLogger(imageDir string) error {
+	logPath := filepath.Join(imageDir, "jaqen.log")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		return fmt.Errorf("failed to create log file: %v", err)
+	}
+
+	g.logger = log.New(logFile, "", log.LstdFlags)
+	g.logger.Printf("Jaqen NewGen Tool started - %s", time.Now().Format("2006-01-02 15:04:05"))
+	return nil
 }
 
 func (g *JaqenGUI) loadConfig() {
@@ -222,6 +236,12 @@ func (g *JaqenGUI) detectPathsFromImageFolder(imgPath string) {
 		return
 	}
 
+	// Setup logging to jaqen.log in the image directory
+	if err := g.setupLogger(imgPath); err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("Warning: Failed to setup logging: %v\n", err)
+	}
+
 	// Extract FM version from path
 	fmVersion := g.extractFMVersion(imgPath)
 	if fmVersion != "" {
@@ -233,9 +253,14 @@ func (g *JaqenGUI) detectPathsFromImageFolder(imgPath string) {
 	if _, err := os.Stat(configPath); err == nil {
 		g.xmlPathEntry.SetText(configPath)
 	} else {
-		// config.xml doesn't exist, generate it
-		g.autoGenerateConfigXML(imgPath)
-		g.xmlPathEntry.SetText(configPath)
+		// Only generate config.xml if this is a valid FM graphics directory
+		if mapper.IsValidFMGraphicsDirectory(imgPath) {
+			g.autoGenerateConfigXML(imgPath)
+			g.xmlPathEntry.SetText(configPath)
+		} else {
+			// Not a valid FM directory, just set the path without generating
+			g.xmlPathEntry.SetText(configPath)
+		}
 	}
 
 	// Try to find RTF file in common locations
@@ -321,11 +346,20 @@ func (g *JaqenGUI) autoDistributeViewsAndFilters(imgPath string) {
 // autoGenerateConfigXML automatically generates a config.xml file if it doesn't exist
 func (g *JaqenGUI) autoGenerateConfigXML(imgPath string) {
 	go func() {
+		if g.logger != nil {
+			g.logger.Printf("Auto-generating config.xml in: %s", imgPath)
+		}
 		err := mapper.GenerateConfigXML(imgPath)
 		if err != nil {
 			// Log error but don't show to user - this is a background operation
 			fmt.Printf("Warning: Failed to generate config.xml: %v\n", err)
+			if g.logger != nil {
+				g.logger.Printf("Error generating config.xml: %v", err)
+			}
 			return
+		}
+		if g.logger != nil {
+			g.logger.Printf("Successfully generated config.xml")
 		}
 
 		// Update status to show success
@@ -832,6 +866,15 @@ func (g *JaqenGUI) runProcessing() {
 		return
 	}
 
+	// Log processing start
+	if g.logger != nil {
+		g.logger.Printf("Starting face mapping process")
+		g.logger.Printf("XML Path: %s", g.xmlPathEntry.Text)
+		g.logger.Printf("RTF Path: %s", g.rtfPathEntry.Text)
+		g.logger.Printf("Image Directory: %s", g.imgDirEntry.Text)
+		g.logger.Printf("FM Version: %s", g.fmVersionSelect.Selected)
+	}
+
 	// Save config before processing
 	g.saveConfig()
 
@@ -846,6 +889,9 @@ func (g *JaqenGUI) runProcessing() {
 
 func (g *JaqenGUI) processFiles() {
 	defer func() {
+		if g.logger != nil {
+			g.logger.Printf("Face mapping process completed")
+		}
 		fyne.Do(func() {
 			g.runButton.SetText("Process Files")
 			g.runButton.Enable()
@@ -858,6 +904,10 @@ func (g *JaqenGUI) processFiles() {
 		g.progressBar.SetValue(0.1)
 		g.statusLabel.SetText("Reading configuration...")
 	})
+
+	if g.logger != nil {
+		g.logger.Printf("Reading configuration...")
+	}
 
 	// Load config if exists
 	configPath := internal.DefaultConfigPath

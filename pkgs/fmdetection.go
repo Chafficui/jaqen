@@ -31,7 +31,7 @@ func FindFMDirectoryFromImagePath(imagePath string) (*FMDirectory, error) {
 	currentPath := imagePath
 	for {
 		// Check if this looks like an FM graphics directory
-		if isFMGraphicsDirectory(currentPath) {
+		if IsValidFMGraphicsDirectory(currentPath) {
 			// Found the graphics directory, now find the FM base directory
 			fmBasePath := findFMBaseDirectory(currentPath)
 			if fmBasePath != "" {
@@ -57,8 +57,8 @@ func FindFMDirectoryFromImagePath(imagePath string) (*FMDirectory, error) {
 	return nil, fmt.Errorf("could not find FM directory from image path: %s", imagePath)
 }
 
-// isFMGraphicsDirectory checks if a path looks like an FM graphics directory
-func isFMGraphicsDirectory(path string) bool {
+// IsValidFMGraphicsDirectory checks if a path looks like an FM graphics directory
+func IsValidFMGraphicsDirectory(path string) bool {
 	// Check if path contains "graphics" and is under "Sports Interactive"
 	pathLower := strings.ToLower(path)
 	if !strings.Contains(pathLower, "graphics") {

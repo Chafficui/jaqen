@@ -1,6 +1,7 @@
 # Jaqen NewGen Tool - Simple Build System
 
 APP_NAME = jaqen-newgen-tool
+VERSION = 1.0.0
 
 .PHONY: build dev clean help
 

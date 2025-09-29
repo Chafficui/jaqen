@@ -3,6 +3,6 @@ jaqen
 .idea
 .cursor/
 jaqen-newgen-tool
-./config.xml
-./newgen.rtf
-./jaqen.toml
+config.xml
+newgen.rtf
+jaqen.toml
