@@ -1,14 +1,31 @@
-build: 
-	go build .
+# Jaqen NewGen Tool - Simple Build System
 
-build-cli:
-	go build -tags cli .
+APP_NAME = jaqen-newgen-tool
 
+.PHONY: build dev clean help
+
+# Build the application
+build:
+	go build -o $(APP_NAME) .
+
+# Build and run for development
 dev:
-	make build && ./jaqen
+	make build && ./$(APP_NAME)
 
-dev-cli:
-	make build-cli && ./jaqen
+# Clean build artifacts
+clean:
+	rm -f $(APP_NAME)
 
-cli:
-	go run -tags cli .
+# Show help
+help:
+	@echo "Jaqen NewGen Tool - Build System"
+	@echo ""
+	@echo "Available targets:"
+	@echo "  build    - Build the application"
+	@echo "  dev      - Build and run for development"
+	@echo "  clean    - Clean build artifacts"
+	@echo "  help     - Show this help message"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make build    # Build the application"
+	@echo "  make dev      # Build and run locally"

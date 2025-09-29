@@ -62,7 +62,7 @@ func NewJaqenGUI() *JaqenGUI {
 	myApp := app.NewWithID("com.jaqen.footballmanager")
 	myApp.SetIcon(theme.DocumentIcon())
 
-	window := myApp.NewWindow("Jaqen NewGen - Football Manager Face Manager")
+	window := myApp.NewWindow("Jaqen NewGen Tool - Football Manager Face Manager")
 	window.Resize(fyne.NewSize(1400, 900))
 	window.CenterOnScreen()
 
@@ -389,7 +389,7 @@ func (g *JaqenGUI) showRTFInstructionsPopup() {
 		instructionsContainer,
 	)
 
-	dialog := dialog.NewCustom("Jaqen NewGen Instructions", "Close", mainContainer, g.window)
+	dialog := dialog.NewCustom("Jaqen NewGen Tool - Instructions", "Close", mainContainer, g.window)
 	dialog.Resize(fyne.NewSize(650, 500))
 	dialog.Show()
 }
@@ -1041,7 +1041,7 @@ func runGUI(cmd *cobra.Command, args []string) {
 
 var guiCmd = &cobra.Command{
 	Use:   "gui",
-	Short: "Launch the graphical user interface",
-	Long:  "Launch the modern GUI for Jaqen NewGen Football Manager face management",
+	Short: "Launch Jaqen NewGen Tool",
+	Long:  "Launch Jaqen NewGen Tool - Football Manager Face Manager",
 	Run:   runGUI,
 }

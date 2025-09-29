@@ -4,129 +4,156 @@
   __  / / /| |/ / / / / __/ /  |/ /
  / /_/ / ___ / /_/ / / /___/ /|  /  
  \____/_/  |_\___\_\/_____/_/ |_/
+
+Jaqen NewGen Tool
 </pre></div>
 
-Create and manage your image file mapping to face profiles in Football Manager. Inspired by [NewGAN-Manager](https://github.com/Maradonna90/NewGAN-Manager), I named it Jaqen based on Jaqen H'ghar having a wall of faces.
+<div align="center">
 
-## Motivation
+**Jaqen NewGen Tool** - Football Manager Face Manager
 
-I found the original didn't run well on Linux, but works pretty well for Windows and Mac. **You could just hook up a Virtual Machine and a volume and use the original inside the Virtual Machine**, like [this](https://youtu.be/MV-iB1v_UdU) (credits to the reddit `u/EvensenFM` that did it), but I decided to write this fun side project. I chose Go because I could compile to multiple platforms with a relatively easy learning curve and didn't have a complicated packaging step. I don't play this game as much anymore and you're very welcomed to submit PRs and issues.
+A modern GUI application for creating and managing image file mappings to face profiles in Football Manager.
 
-## Usage
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/chafficui/jaqen-newgen-tool)
 
-**If you're not interested in configuring your own setup, just read the [basic setup](./docs/basic_setup.md)**
+</div>
 
-### Default Mode (GUI)
+## About
 
-Jaqen now launches the modern GUI by default:
+Jaqen NewGen Tool is a modern, cross-platform GUI application for managing Football Manager regen face mappings. It automatically assigns face images to newgen players based on their nationality and ethnic groups.
+
+### Key Features
+
+- **🔄 Auto-Detection** - Automatically finds FM installations and paths
+- **📁 File Management** - Auto-generates config.xml and distributes views/filters
+- **🌍 Cross-Platform** - Works on Windows, macOS, and Linux
+- **⚙️ Smart Mapping** - Maps nations to ethnic groups with override support
+- **🎯 Easy Setup** - Guided workflow with helpful instructions
+- **📊 Visual Progress** - Real-time feedback during processing
+
+## Quick Start
+
+### 1. Download and Run
+
+1. **Download** the latest release for your platform from the [Releases page](https://github.com/chafficui/jaqen-newgen-tool/releases)
+2. **Extract** the downloaded file to a folder of your choice
+3. **Run** the application:
+   - **Windows**: Double-click `jaqen-newgen-tool.exe`
+   - **macOS**: Double-click `jaqen-newgen-tool` (you may need to allow it in Security & Privacy)
+   - **Linux**: Run `./jaqen-newgen-tool` in terminal
+
+### 2. Setup Football Manager
+
+1. **Export RTF from Football Manager:**
+   - Go to Scouting → Players in Range
+   - Import "SCRIPT FACES player search" view (auto-distributed)
+   - Apply "is newgen search filter" (auto-distributed)
+   - Select all players (Ctrl+A) → Print to text file (Ctrl+P)
+   - Save as "newgen.rtf" in your image folder
+
+2. **Configure Jaqen NewGen Tool:**
+   - Select your image directory (face pack folder)
+   - Choose settings (Preserve, Allow Duplicates, etc.)
+   - Click "Assign Face Mappings"
+
+3. **Apply in Football Manager:**
+   - Restart Football Manager
+   - Newgen faces will use assigned images
+
+### 3. Watch the Tutorial
+
+📺 **[Complete Setup Video Tutorial](https://youtu.be/aHnrpfH--ic)**
+
+## Installation
+
+### Download Pre-built Binaries
+
+Download the latest release for your platform from the [Releases page](https://github.com/chafficui/jaqen-newgen-tool/releases).
+
+**Supported Platforms:**
+- **Windows**: `jaqen-newgen-tool-windows-x.x.x.zip`
+- **macOS**: `jaqen-newgen-tool-macos-x.x.x.tar.gz` (Intel + Apple Silicon)
+- **Linux**: `jaqen-newgen-tool-linux-x.x.x.tar.gz`
+
+### Build from Source (Advanced Users)
+
+For developers or users who want to build from source:
 
 ```bash
-# Build and run (GUI mode by default)
+# Clone repository
+git clone https://github.com/chafficui/jaqen-newgen-tool.git
+cd jaqen-newgen-tool
+
+# Build for current platform
 make build
-./jaqen
 
-# Or run directly
-go run .
+# Build for all platforms
+make build-all
+
+# Run
+./jaqen-newgen-tool
 ```
 
-The GUI provides:
-- Easy file selection with native browse dialogs
-- Visual progress indicators
-- Checkbox options instead of command-line flags
-- Real-time status updates
-- Error handling with user-friendly messages
+## Configuration
 
-See the [GUI Guide](./docs/gui-guide.md) for detailed instructions.
+### Ethnic Group Mapping
 
-### CLI Mode
+The tool automatically maps Football Manager nations to ethnic groups:
 
-To use the command-line interface instead of the GUI:
+| Ethnic Group | Code |
+|--------------|------|
+| African | African |
+| Asian | Asian |
+| Caucasian | Caucasian |
+| Central European | Central European |
+| Eastern European Central Asian | EECA |
+| Italian Mediterranean | Italmed |
+| Middle East North African | MENA |
+| Middle East South Asian | MESA |
+| South American Mediterranean | SAMed |
+| Scandinavian | Scandinavian |
+| South East Asian | Seasian |
+| South American | South American |
+| Spanish Mediterranean | SpanMed |
+| Yugoslav Greek | YugoGreek |
 
-```bash
-# Run CLI mode
-./jaqen cli
+### Custom Mappings
 
-# Or build CLI-only version
-make build-cli
-./jaqen cli
-```
-
-These are the flags that you could use to specify the paths for various files if you would wish to change the defaults
-
-- `--xml` specifies the xml path. Defaults to `./config.xml`
-- `--rtf` specifies the rtf path. Defaults to `./newgan.rtf`
-- `--img` specifies the image root directory. Defaults to `./`
-- `--preserve` preserves the current xml mapping. Defaults to not preserve.
-- `--version` could specify the football manager version. Defaults to `2024`, all other values will be ignored.
-- `--config` specifies the config directory. Defaults to `./jaqen.toml`
-- `--allow_duplicate` allows images to be assigned to multiple people
-
-All paths are relative to the binary.
-
-```bash
-jaqen \
-    --xml=/path/to/config.xml \
-    --rtf=/path/to/newgan.rtf \ 
-    --img=/path/to/images/directory \
-    --preserve \ 
-    --version=2024 \ 
-    --config=/path/to/config \
-    --allow_duplicate
-```
-
-To format the config toml file
-
-```bash
-jaqen format /path/to/jaqen.toml
-```
-
-### Config file options
-
-It's basically the command line flags but in a file. You could see an example [here](./example/jaqen.toml). Flags will take precendents over config file options, which itself will take precendents over the defaults. The only difference is the `[mapping_override]` section, it will look something like this:
+You can override default mappings in the settings:
 
 ```toml
 [mapping_override]
-AFG = 'MESA'
+AFG = 'MESA'  # Afghanistan → Middle East South Asian
+ENG = 'Caucasian'  # England → Caucasian
 ```
 
-The first word "AFG" represents the country initials "Afghanistan", while the second word describes the type of faces that it should use, which in this example is "MESA" (it is a code for middle east south asian). The point of this is to be able to override the default mappings from nations to a certain facepack. For example, if I want to make Afghans look South East Asian, you could change it to
+## How It Works
 
-```toml
-[mapping_override]
-AFG = 'Seasian'
-```
+1. **Parse RTF File** - Extracts player data (ID, nationality, ethnic group)
+2. **Map Nations** - Converts nations to ethnic groups (with override support)
+3. **Select Images** - Randomly selects images from appropriate ethnic directories
+4. **Generate XML** - Creates Football Manager mapping file
+5. **Update Config** - Writes updated config.xml for FM
 
-Or if you loaded a database that has a country not listed in the game, you could also add a country face mapping in there
+## Credits
 
-```toml
-[mapping_override]
-XYZ = 'EECA'
-```
+This project is a fork and continuation of the original work:
 
-These are the current code for faces
+- **Base Project**: [Jaqen](https://github.com/imfulee/jaqen) by [@imfulee](https://github.com/imfulee)
+- **Views & Filters**: [NewGAN-Manager](https://github.com/Maradonna90/NewGAN-Manager) by [@Maradonna90](https://github.com/Maradonna90)
+- **Inspiration**: Named after Jaqen H'ghar from Game of Thrones (wall of faces)
 
-| Ethnic group                |Code for the faces|
-|-----------------------------|------------------|
-| African                     | African          |
-| Asian                       | Asian            |
-| Caucasian                   | Caucasian        |
-| CentralEuropean             | Central European |
-| EasternEuropeanCentralAsian | EECA             |
-| ItalianMediterranean        | Italmed          |
-| MiddleEastNorthAfrican      | MENA             |
-| MiddleEastSouthAsian        | MESA             |
-| SouthAmericanMediterranean  | SAMed            |
-| Scandinavian                | Scandinavian     |
-| SouthEastAsian              | Seasian          |
-| SouthAmerican               | South American   |
-| SpanishMediterranean        | SpanMed          |
-| YugoslavGreek               | YugoGreek        |
+## License
 
-## Future Wants
+This project is licensed under the GPL v3 License - see the [LICENSE](LICENSE) file for details.
 
-This is just some notes on what I want it to do in the future.
+## Contributing
 
-- ✅ **Build a GUI** - Implemented with Fyne! Modern, cross-platform interface
-- There are some performance left on the table, currently the way reading and writing to file works relatively slow compared to what a buffered read and a generator could do. Probably faster than Python though :p
-- Remove the need to copy the `config.xml` file into the directory
-- Write some god damn tests
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Support
+
+- 📖 **Documentation**: Check the [docs/](docs/) folder
+- 🐛 **Issues**: Report bugs on [GitHub Issues](https://github.com/chafficui/jaqen-newgen-tool/issues)

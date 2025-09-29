@@ -1,0 +1,8 @@
+preserve = true
+xml_path = 'config.xml'
+rtf_path = './newgen.rtf'
+img_path = './'
+fm_version = '2024'
+allow_duplicate = true
+
+[mapping_override]
