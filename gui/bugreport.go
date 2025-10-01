@@ -78,26 +78,56 @@ func (g *JaqenGUI) collectBugReportData() string {
 	report.WriteString(getSystemInfo())
 	report.WriteString("\n```\n\n")
 
-	// Try to read config file
-	report.WriteString("### Configuration\n")
-	configPath := internal.GetDefaultConfigPath()
-	if configContent, err := readFileWithLimit(configPath, maxConfigLines); err == nil {
-		report.WriteString("```toml\n")
-		report.WriteString(configContent)
-		report.WriteString("\n```\n\n")
-	} else {
-		// Try user config directory
-		if userConfigPath, err := internal.GetUserConfigPath(); err == nil {
-			if configContent, err := readFileWithLimit(userConfigPath, maxConfigLines); err == nil {
-				report.WriteString("```toml\n")
-				report.WriteString(configContent)
-				report.WriteString("\n```\n\n")
-			} else {
-				report.WriteString("*Configuration file not found*\n\n")
+	// Show current profile and all available profiles
+	report.WriteString("### Profile Information\n")
+	if g.currentProfile != nil {
+		report.WriteString(fmt.Sprintf("**Current Profile:** %s\n\n", g.currentProfile.Name))
+	}
+
+	// List all available profiles
+	if g.profileManager != nil {
+		profiles := g.profileManager.ListProfiles()
+		report.WriteString(fmt.Sprintf("**Available Profiles:** %s\n\n", strings.Join(profiles, ", ")))
+
+		// Show current profile configuration
+		if g.currentProfile != nil {
+			report.WriteString("**Current Profile Configuration:**\n```json\n")
+
+			// Format current profile settings
+			report.WriteString(fmt.Sprintf("Profile Name: %s\n", g.currentProfile.Name))
+			report.WriteString(fmt.Sprintf("Created: %s\n", g.currentProfile.CreatedAt.Format("2006-01-02 15:04:05")))
+			report.WriteString(fmt.Sprintf("Updated: %s\n\n", g.currentProfile.UpdatedAt.Format("2006-01-02 15:04:05")))
+
+			cfg := g.currentProfile.Config
+			if cfg.Preserve != nil {
+				report.WriteString(fmt.Sprintf("Preserve: %v\n", *cfg.Preserve))
 			}
-		} else {
-			report.WriteString("*Configuration file not found*\n\n")
+			if cfg.AllowDuplicate != nil {
+				report.WriteString(fmt.Sprintf("Allow Duplicate: %v\n", *cfg.AllowDuplicate))
+			}
+			if cfg.FMVersion != nil {
+				report.WriteString(fmt.Sprintf("FM Version: %s\n", *cfg.FMVersion))
+			}
+			if cfg.XMLPath != nil {
+				report.WriteString(fmt.Sprintf("XML Path: %s\n", *cfg.XMLPath))
+			}
+			if cfg.RTFPath != nil {
+				report.WriteString(fmt.Sprintf("RTF Path: %s\n", *cfg.RTFPath))
+			}
+			if cfg.IMGPath != nil {
+				report.WriteString(fmt.Sprintf("Image Path: %s\n", *cfg.IMGPath))
+			}
+			if cfg.MappingOverride != nil && len(*cfg.MappingOverride) > 0 {
+				report.WriteString("\nMapping Overrides:\n")
+				for country, ethnic := range *cfg.MappingOverride {
+					report.WriteString(fmt.Sprintf("  %s → %s\n", country, ethnic))
+				}
+			}
+
+			report.WriteString("```\n\n")
 		}
+	} else {
+		report.WriteString("*Profile system not initialized*\n\n")
 	}
 
 	// Try to read log file
