@@ -317,10 +317,42 @@ func (g *JaqenGUI) editMappingOverride(country, ethnic string) {
 func (g *JaqenGUI) createFileSelector(entry *widget.Entry, title string, fileType string) *widget.Button {
 	return widget.NewButton("Browse...", func() {
 		if fileType == "directory" {
+			// Start in game's graphics directory if we have a game path
+			startDir := ""
+			if g.currentProfile != nil && g.currentProfile.GamePath != "" {
+				graphicsPath := filepath.Join(g.currentProfile.GamePath, "graphics")
+				if stat, err := os.Stat(graphicsPath); err == nil && stat.IsDir() {
+					startDir = graphicsPath
+					if g.logger != nil {
+						g.logger.Printf("Opening directory browser in: %s", startDir)
+					}
+				} else if err != nil {
+					// Graphics folder doesn't exist, try to create it
+					if err := os.MkdirAll(graphicsPath, 0755); err == nil {
+						startDir = graphicsPath
+						if g.logger != nil {
+							g.logger.Printf("Created and opening directory browser in: %s", startDir)
+						}
+					} else if g.logger != nil {
+						g.logger.Printf("Could not create graphics directory: %v", err)
+					}
+				}
+			}
+
 			// Use native folder dialog
-			path, err := nativeDialog.Directory().Title("Select Directory").Browse()
+			var path string
+			var err error
+
+			if startDir != "" {
+				path, err = nativeDialog.Directory().Title("Select Directory").SetStartDir(startDir).Browse()
+			} else {
+				path, err = nativeDialog.Directory().Title("Select Directory").Browse()
+			}
+
 			if err == nil && path != "" {
 				entry.SetText(path)
+				// Auto-detect and update game path if needed
+				g.updateGamePathFromImagePath(path)
 			}
 		} else {
 			// Use native file dialog with proper filters

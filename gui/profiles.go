@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
@@ -9,7 +10,7 @@ import (
 	internal "jaqen/internal"
 )
 
-// initializeProfiles sets up the profile manager and loads/creates default profile
+// initializeProfiles sets up the profile manager and auto-creates profiles for FM installations
 func (g *JaqenGUI) initializeProfiles() error {
 	pm, err := internal.NewProfileManager()
 	if err != nil {
@@ -17,18 +18,57 @@ func (g *JaqenGUI) initializeProfiles() error {
 	}
 	g.profileManager = pm
 
-	// Ensure default profile exists
-	defaultProfile, err := pm.EnsureDefaultProfile()
+	// Find all FM installations
+	fmDirs := g.findAllFMInstallations()
+
+	if g.logger != nil {
+		g.logger.Printf("Found %d FM installation(s)", len(fmDirs))
+	}
+
+	// Create profiles for each FM installation if they don't exist
+	for _, fmDir := range fmDirs {
+		// Extract version from path for profile name
+		version := g.extractFMVersion(fmDir.BasePath)
+		profileName := fmt.Sprintf("FM %s", version)
+		if version == "" {
+			// Fallback to directory name
+			profileName = filepath.Base(fmDir.BasePath)
+		}
+
+		// Check if profile already exists
+		if _, err := pm.GetProfile(profileName); err != nil {
+			// Profile doesn't exist, create it
+			if _, err := pm.CreateProfileForGame(profileName, fmDir.BasePath); err != nil {
+				if g.logger != nil {
+					g.logger.Printf("Warning: Failed to create profile for %s: %v", fmDir.BasePath, err)
+				}
+			} else {
+				if g.logger != nil {
+					g.logger.Printf("Created profile '%s' for game at: %s", profileName, fmDir.BasePath)
+				}
+			}
+		}
+	}
+
+	// Load first available profile, or create a generic one if none exist
+	firstProfile, err := pm.GetFirstProfile()
 	if err != nil {
-		return fmt.Errorf("failed to create default profile: %w", err)
+		// No profiles exist, create a generic default
+		if g.logger != nil {
+			g.logger.Println("No profiles found, creating generic profile...")
+		}
+		firstProfile, err = pm.CreateProfileForGame("My Profile", "")
+		if err != nil {
+			return fmt.Errorf("failed to create initial profile: %w", err)
+		}
 	}
 
 	// Set flag to prevent auto-save during initial load
 	// This will be unset in ShowAndRun() after applyConfigToGUI() is called
 	g.isLoadingProfile = true
 
-	g.currentProfile = defaultProfile
-	g.config = defaultProfile.Config
+	g.currentProfile = firstProfile
+	g.config = firstProfile.Config
 
 	if g.logger != nil {
 		g.logger.Printf("Loaded profile: %s", g.currentProfile.Name)
@@ -177,8 +217,10 @@ func (g *JaqenGUI) showCreateProfileDialog() {
 
 // showDeleteProfileDialog shows dialog to confirm profile deletion
 func (g *JaqenGUI) showDeleteProfileDialog() {
-	if g.currentProfile.Name == "default" {
-		dialog.ShowError(fmt.Errorf("cannot delete default profile"), g.window)
+	// Check if there are other profiles to switch to
+	profiles := g.profileManager.ListProfiles()
+	if len(profiles) <= 1 {
+		dialog.ShowError(fmt.Errorf("cannot delete the only profile"), g.window)
 		return
 	}
 
@@ -191,9 +233,17 @@ func (g *JaqenGUI) showDeleteProfileDialog() {
 
 			profileToDelete := g.currentProfile.Name
 
-			// Switch to default profile first
-			if err := g.switchProfile("default"); err != nil {
-				dialog.ShowError(fmt.Errorf("failed to switch to default profile: %w", err), g.window)
+			// Switch to another profile first (the first one that's not the current)
+			var targetProfile string
+			for _, p := range profiles {
+				if p != profileToDelete {
+					targetProfile = p
+					break
+				}
+			}
+
+			if err := g.switchProfile(targetProfile); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to switch profile: %w", err), g.window)
 				return
 			}
 

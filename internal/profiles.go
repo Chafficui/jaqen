@@ -12,6 +12,7 @@ import (
 // Profile represents a saved configuration profile
 type Profile struct {
 	Name      string      `json:"name"`
+	GamePath  string      `json:"game_path"` // Path to FM installation
 	Config    JaqenConfig `json:"config"`
 	CreatedAt time.Time   `json:"created_at"`
 	UpdatedAt time.Time   `json:"updated_at"`
@@ -137,7 +138,38 @@ func (pm *ProfileManager) CreateProfile(name string, basedOn *Profile) (*Profile
 
 	newProfile := &Profile{
 		Name:      name,
+		GamePath:  basedOn.GamePath,
 		Config:    basedOn.Config,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := pm.SaveProfile(newProfile); err != nil {
+		return nil, err
+	}
+
+	return newProfile, nil
+}
+
+// CreateProfileForGame creates a new profile for a specific FM installation
+func (pm *ProfileManager) CreateProfileForGame(name string, gamePath string) (*Profile, error) {
+	if _, exists := pm.profiles[name]; exists {
+		return nil, fmt.Errorf("profile '%s' already exists", name)
+	}
+
+	// Create profile with game-specific settings
+	newProfile := &Profile{
+		Name:     name,
+		GamePath: gamePath,
+		Config: JaqenConfig{
+			Preserve:        &[]bool{true}[0],
+			XMLPath:         &[]string{""}[0], // Will be set when user selects image folder
+			RTFPath:         &[]string{""}[0],
+			IMGPath:         &[]string{""}[0],
+			FMVersion:       &[]string{DefaultFMVersion}[0],
+			AllowDuplicate:  &[]bool{true}[0],
+			MappingOverride: &map[string]string{},
+		},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -151,10 +183,6 @@ func (pm *ProfileManager) CreateProfile(name string, basedOn *Profile) (*Profile
 
 // DeleteProfile deletes a profile
 func (pm *ProfileManager) DeleteProfile(name string) error {
-	if name == "default" {
-		return fmt.Errorf("cannot delete default profile")
-	}
-
 	if _, exists := pm.profiles[name]; !exists {
 		return fmt.Errorf("profile '%s' not found", name)
 	}
@@ -168,32 +196,12 @@ func (pm *ProfileManager) DeleteProfile(name string) error {
 	return nil
 }
 
-// EnsureDefaultProfile creates a default profile if it doesn't exist
-func (pm *ProfileManager) EnsureDefaultProfile() (*Profile, error) {
-	defaultProfile, exists := pm.profiles["default"]
-	if exists {
-		return defaultProfile, nil
+// GetFirstProfile returns the first available profile (alphabetically)
+func (pm *ProfileManager) GetFirstProfile() (*Profile, error) {
+	profiles := pm.ListProfiles()
+	if len(profiles) == 0 {
+		return nil, fmt.Errorf("no profiles available")
 	}
 
-	// Create default profile with default settings
-	defaultProfile = &Profile{
-		Name: "default",
-		Config: JaqenConfig{
-			Preserve:        &[]bool{true}[0],
-			XMLPath:         &[]string{DefaultXMLPath}[0],
-			RTFPath:         &[]string{DefaultRTFPath}[0],
-			IMGPath:         &[]string{DefaultImagesPath}[0],
-			FMVersion:       &[]string{DefaultFMVersion}[0],
-			AllowDuplicate:  &[]bool{true}[0],
-			MappingOverride: &map[string]string{},
-		},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	if err := pm.SaveProfile(defaultProfile); err != nil {
-		return nil, err
-	}
-
-	return defaultProfile, nil
+	return pm.GetProfile(profiles[0])
 }

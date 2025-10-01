@@ -95,6 +95,9 @@ func (g *JaqenGUI) collectBugReportData() string {
 
 			// Format current profile settings
 			report.WriteString(fmt.Sprintf("Profile Name: %s\n", g.currentProfile.Name))
+			if g.currentProfile.GamePath != "" {
+				report.WriteString(fmt.Sprintf("Game Path: %s\n", g.currentProfile.GamePath))
+			}
 			report.WriteString(fmt.Sprintf("Created: %s\n", g.currentProfile.CreatedAt.Format("2006-01-02 15:04:05")))
 			report.WriteString(fmt.Sprintf("Updated: %s\n\n", g.currentProfile.UpdatedAt.Format("2006-01-02 15:04:05")))
 
