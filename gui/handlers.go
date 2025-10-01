@@ -39,13 +39,15 @@ func (g *JaqenGUI) runProcessing() {
 		g.logger.Printf("FM Version: %s", g.fmVersionSelect.Selected)
 	}
 
-	// Save config before processing
-	g.saveConfig()
+	// Save current profile before processing
+	if g.profileManager != nil && g.currentProfile != nil {
+		g.saveCurrentProfile()
+	}
 
 	g.runButton.SetText("Processing...")
 	g.runButton.Disable()
 	g.progressBar.Show()
-	
+
 	if g.logger != nil {
 		g.logger.Println("Starting face mapping process...")
 	}
@@ -92,7 +94,7 @@ func (g *JaqenGUI) processFiles() {
 	fyne.Do(func() {
 		g.progressBar.SetValue(0.2)
 	})
-	
+
 	if g.logger != nil {
 		g.logger.Println("Creating mapping...")
 	}
@@ -121,7 +123,7 @@ func (g *JaqenGUI) processFiles() {
 	fyne.Do(func() {
 		g.progressBar.SetValue(0.3)
 	})
-	
+
 	if g.logger != nil {
 		g.logger.Println("Loading image pool...")
 	}
@@ -138,7 +140,7 @@ func (g *JaqenGUI) processFiles() {
 	fyne.Do(func() {
 		g.progressBar.SetValue(0.4)
 	})
-	
+
 	if g.logger != nil {
 		g.logger.Println("Processing players...")
 	}
@@ -163,7 +165,7 @@ func (g *JaqenGUI) processFiles() {
 	fyne.Do(func() {
 		g.progressBar.SetValue(0.5)
 	})
-	
+
 	if g.logger != nil {
 		g.logger.Println("Assigning faces to players...")
 	}
@@ -199,14 +201,14 @@ func (g *JaqenGUI) processFiles() {
 
 		// Update progress
 		progress := 0.5 + (float64(i+1)/float64(totalPlayers))*0.4
-		
+
 		// Log every 10% or so to avoid spam
 		if i%10 == 0 || i == totalPlayers-1 {
 			if g.logger != nil {
 				g.logger.Printf("Processing player %d of %d...", i+1, totalPlayers)
 			}
 		}
-		
+
 		fyne.Do(func() {
 			g.progressBar.SetValue(progress)
 		})
@@ -215,7 +217,7 @@ func (g *JaqenGUI) processFiles() {
 	fyne.Do(func() {
 		g.progressBar.SetValue(0.9)
 	})
-	
+
 	if g.logger != nil {
 		g.logger.Println("Saving mapping files...")
 	}
@@ -238,7 +240,7 @@ func (g *JaqenGUI) processFiles() {
 	if g.logger != nil {
 		g.logger.Println("✅ Face mapping completed successfully!")
 	}
-	
+
 	fyne.Do(func() {
 		g.progressBar.SetValue(1.0)
 		dialog.ShowInformation("Success", "Face mapping completed successfully!", g.window)

@@ -40,6 +40,12 @@ type JaqenGUI struct {
 
 	// State tracking
 	hasShownRTFPopup bool
+	isLoadingProfile bool // Flag to prevent auto-save during profile loading
+
+	// Profile management
+	profileManager *internal.ProfileManager
+	currentProfile *internal.Profile
+	profileSelect  *widget.Select
 
 	config internal.JaqenConfig
 }
@@ -62,8 +68,12 @@ func New() *JaqenGUI {
 
 // ShowAndRun displays the window and runs the application
 func (g *JaqenGUI) ShowAndRun() {
-	// Initialize config
-	g.loadConfig()
+	// Initialize profiles
+	if err := g.initializeProfiles(); err != nil {
+		if g.logger != nil {
+			g.logger.Printf("Failed to initialize profiles: %v", err)
+		}
+	}
 
 	// Auto-distribute views and filters to all FM installations on startup
 	go g.autoDistributeOnStartup()
@@ -77,6 +87,9 @@ func (g *JaqenGUI) ShowAndRun() {
 
 	// Apply config to GUI after widgets are created
 	g.applyConfigToGUI()
+
+	// Now that initial profile is loaded and applied, allow auto-save
+	g.isLoadingProfile = false
 
 	// Add some padding
 	paddedContent := container.NewPadded(content)

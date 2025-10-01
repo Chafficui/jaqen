@@ -24,6 +24,38 @@ func (g *JaqenGUI) createHeaderBar() *fyne.Container {
 	title := widget.NewLabel("Jaqen NewGen - Football Manager Face Manager")
 	title.TextStyle.Bold = true
 
+	// Profile selection
+	profileLabel := widget.NewLabel("Profile:")
+
+	g.profileSelect = widget.NewSelect([]string{}, func(selected string) {
+		if selected != "" && g.currentProfile != nil && selected != g.currentProfile.Name {
+			if err := g.switchProfile(selected); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to switch profile: %w", err), g.window)
+			}
+		}
+	})
+
+	if g.profileManager != nil {
+		g.updateProfileSelector()
+	}
+
+	newProfileBtn := widget.NewButton("➕", func() {
+		g.showCreateProfileDialog()
+	})
+	newProfileBtn.Importance = widget.LowImportance
+
+	deleteProfileBtn := widget.NewButton("🗑️", func() {
+		g.showDeleteProfileDialog()
+	})
+	deleteProfileBtn.Importance = widget.LowImportance
+
+	profileContainer := container.NewHBox(
+		profileLabel,
+		g.profileSelect,
+		newProfileBtn,
+		deleteProfileBtn,
+	)
+
 	// Add help button
 	helpBtn := widget.NewButton("❓ Help", func() {
 		g.showRTFInstructionsPopup()
@@ -37,7 +69,10 @@ func (g *JaqenGUI) createHeaderBar() *fyne.Container {
 	// Create button container
 	buttonContainer := container.NewHBox(helpBtn, bugReportBtn)
 
-	return container.NewBorder(nil, nil, title, buttonContainer, widget.NewSeparator())
+	return container.NewBorder(nil, nil,
+		container.NewHBox(title, widget.NewSeparator(), profileContainer),
+		buttonContainer,
+		widget.NewSeparator())
 }
 
 // createMainContent creates the main content area with all sections
