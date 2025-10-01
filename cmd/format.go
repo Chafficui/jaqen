@@ -12,7 +12,7 @@ import (
 )
 
 func formatConfig(cmd *cobra.Command, args []string) {
-	configPath := "./jaqen.toml"
+	configPath := internal.GetDefaultConfigPath()
 	if len(args) == 1 {
 		configPath = args[0]
 	}

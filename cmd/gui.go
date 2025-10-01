@@ -28,10 +28,9 @@ import (
 )
 
 type JaqenGUI struct {
-	app            fyne.App
-	window         fyne.Window
-	settingsWindow fyne.Window
-	logger         *log.Logger
+	app    fyne.App
+	window fyne.Window
+	logger *log.Logger
 
 	// Main content
 	imgDirEntry     *widget.Entry
@@ -74,9 +73,14 @@ func NewJaqenGUI() *JaqenGUI {
 	}
 }
 
-// setupLogger creates a logger that writes to jaqen.log in the specified directory
+// setupLogger creates a logger that writes to jaqen.log in the user config directory
 func (g *JaqenGUI) setupLogger(imageDir string) error {
-	logPath := filepath.Join(imageDir, "jaqen.log")
+	logPath, err := internal.GetUserLogPath()
+	if err != nil {
+		// Fallback to current directory if user directory is not accessible
+		logPath = filepath.Join(imageDir, "jaqen.log")
+	}
+
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		return fmt.Errorf("failed to create log file: %v", err)
@@ -92,13 +96,19 @@ func (g *JaqenGUI) setupLogger(imageDir string) error {
 	return nil
 }
 
-// setupStartupLogger creates a logger for startup operations in the current directory
+// setupStartupLogger creates a logger for startup operations in the user config directory
 func (g *JaqenGUI) setupStartupLogger() {
 	if g.logger != nil {
 		return // Already set up
 	}
 
-	logPath := "jaqen-startup.log"
+	logPath, err := internal.GetUserLogPath()
+	if err != nil {
+		// If we can't access user directory, just use stdout
+		g.logger = log.New(os.Stdout, "", log.LstdFlags)
+		return
+	}
+
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		// If we can't create log file, just use stdout
@@ -227,7 +237,7 @@ func (g *JaqenGUI) shouldContinueSearch(entryPath, searchPath string) bool {
 }
 
 func (g *JaqenGUI) loadConfig() {
-	configPath := internal.DefaultConfigPath
+	configPath := internal.GetDefaultConfigPath()
 
 	// Try to load existing config
 	if _, err := os.Stat(configPath); err == nil {
@@ -299,24 +309,6 @@ func (g *JaqenGUI) applyConfigToGUI() {
 	}
 }
 
-func (g *JaqenGUI) applyConfigToSettings() {
-	// Apply config specifically to settings widgets
-	if g.preserveCheck != nil && g.config.Preserve != nil {
-		g.preserveCheck.SetChecked(*g.config.Preserve)
-	}
-	if g.allowDuplicateCheck != nil && g.config.AllowDuplicate != nil {
-		g.allowDuplicateCheck.SetChecked(*g.config.AllowDuplicate)
-	}
-	if g.config.MappingOverride != nil {
-		// Copy the mapping overrides from config to GUI map
-		g.mappingOverrides = make(map[string]string)
-		for k, v := range *g.config.MappingOverride {
-			g.mappingOverrides[k] = v
-		}
-		g.updateMappingOverrideList()
-	}
-}
-
 func (g *JaqenGUI) saveConfig() {
 	// Update config from GUI (only if widgets exist)
 	if g.preserveCheck != nil {
@@ -354,7 +346,7 @@ func (g *JaqenGUI) saveConfig() {
 	g.config.MappingOverride = &g.mappingOverrides
 
 	// Save to default config file
-	configPath := internal.DefaultConfigPath
+	configPath := internal.GetDefaultConfigPath()
 	err := internal.WriteConfig(g.config, configPath)
 	if err != nil {
 		fyne.Do(func() {
@@ -599,54 +591,7 @@ func (g *JaqenGUI) createHeaderBar() *fyne.Container {
 	title := widget.NewLabel("Jaqen NewGen - Football Manager Face Manager")
 	title.TextStyle.Bold = true
 
-	settingsButton := widget.NewButtonWithIcon("", theme.SettingsIcon(), g.openSettings)
-	settingsButton.Importance = widget.MediumImportance
-
-	return container.NewBorder(nil, nil, title, settingsButton, widget.NewSeparator())
-}
-
-func (g *JaqenGUI) openSettings() {
-	if g.settingsWindow != nil {
-		g.settingsWindow.Show()
-		return
-	}
-
-	g.settingsWindow = g.app.NewWindow("Settings")
-	g.settingsWindow.Resize(fyne.NewSize(600, 500)) // Larger settings window
-	g.settingsWindow.SetContent(g.createSettingsContent())
-
-	// Apply config to settings widgets after they're created
-	g.applyConfigToSettings()
-
-	// Close settings window when main window closes
-	g.settingsWindow.SetCloseIntercept(func() {
-		g.settingsWindow.Hide()
-	})
-
-	g.settingsWindow.Show()
-}
-
-func (g *JaqenGUI) createSettingsContent() *fyne.Container {
-	// Preserve checkbox
-	g.preserveCheck = widget.NewCheck("Preserve existing mappings", nil)
-	g.preserveCheck.SetChecked(true)
-	g.preserveCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
-
-	// Allow duplicate checkbox
-	g.allowDuplicateCheck = widget.NewCheck("Allow duplicate mappings", nil)
-	g.allowDuplicateCheck.SetChecked(true)
-	g.allowDuplicateCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
-
-	// Mapping overrides section
-	mappingOverrideCard := widget.NewCard("Mapping Overrides", "", g.createMappingOverrideSection())
-
-	return container.NewVBox(
-		widget.NewCard("General Settings", "", container.NewVBox(
-			g.preserveCheck,
-			g.allowDuplicateCheck,
-		)),
-		mappingOverrideCard,
-	)
+	return container.NewBorder(nil, nil, title, nil, widget.NewSeparator())
 }
 
 func (g *JaqenGUI) updateMappingOverrideList() {
@@ -819,17 +764,14 @@ func (g *JaqenGUI) createMainContent() *fyne.Container {
 	g.runButton = widget.NewButton("Assign Face Mappings", g.runProcessing)
 	g.runButton.Importance = widget.HighImportance
 
-	// Initialize checkboxes if they don't exist (for main window)
-	if g.preserveCheck == nil {
-		g.preserveCheck = widget.NewCheck("Preserve existing mappings", nil)
-		g.preserveCheck.SetChecked(true)
-		g.preserveCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
-	}
-	if g.allowDuplicateCheck == nil {
-		g.allowDuplicateCheck = widget.NewCheck("Allow duplicate mappings", nil)
-		g.allowDuplicateCheck.SetChecked(true)
-		g.allowDuplicateCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
-	}
+	// Initialize settings widgets
+	g.preserveCheck = widget.NewCheck("Preserve existing mappings", nil)
+	g.preserveCheck.SetChecked(true)
+	g.preserveCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
+
+	g.allowDuplicateCheck = widget.NewCheck("Allow duplicate mappings", nil)
+	g.allowDuplicateCheck.SetChecked(true)
+	g.allowDuplicateCheck.OnChanged = func(_ bool) { g.autoSaveConfig() }
 
 	// Create image preview cards with better styling - no titles
 	g.imagePreview1 = widget.NewCard("", "", widget.NewLabel("No folder selected"))
@@ -860,6 +802,14 @@ func (g *JaqenGUI) createMainContent() *fyne.Container {
 			g.imagePreview3,
 		))
 
+	// Create settings section
+	settingsCard := widget.NewCard("Settings", "", container.NewVBox(
+		g.preserveCheck,
+		g.allowDuplicateCheck,
+		widget.NewSeparator(),
+		g.createMappingOverrideSection(),
+	))
+
 	// Create action section with better styling
 	actionCard := widget.NewCard("Actions", "", container.NewVBox(
 		g.statusLabel,
@@ -871,6 +821,8 @@ func (g *JaqenGUI) createMainContent() *fyne.Container {
 		setupCard,
 		widget.NewSeparator(),
 		imagePreviewCard,
+		widget.NewSeparator(),
+		settingsCard,
 		widget.NewSeparator(),
 		actionCard,
 	)
@@ -966,11 +918,7 @@ func (g *JaqenGUI) editMappingOverride(country, ethnic string) {
 		},
 	}
 
-	// Use settings window if it exists, otherwise main window
 	targetWindow := g.window
-	if g.settingsWindow != nil {
-		targetWindow = g.settingsWindow
-	}
 
 	dialog.ShowForm("Edit Mapping Override", "Save", "Cancel", form.Items, func(confirmed bool) {
 		if confirmed && countryEntry.Text != "" && ethnicSelect.Selected != "" {
@@ -1047,7 +995,7 @@ func (g *JaqenGUI) processFiles() {
 	}
 
 	// Load config if exists
-	configPath := internal.DefaultConfigPath
+	configPath := internal.GetDefaultConfigPath()
 
 	if _, err := os.Stat(configPath); err == nil {
 		_, err := internal.ReadConfig(configPath)
@@ -1213,11 +1161,8 @@ func (g *JaqenGUI) ShowAndRun() {
 
 	g.window.SetContent(paddedContent)
 
-	// Close settings window when main window closes
+	// Close main window
 	g.window.SetCloseIntercept(func() {
-		if g.settingsWindow != nil {
-			g.settingsWindow.Close()
-		}
 		g.window.Close()
 	})
 
