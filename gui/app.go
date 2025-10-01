@@ -23,7 +23,7 @@ type JaqenGUI struct {
 	xmlPathEntry    *widget.Entry
 	rtfPathEntry    *widget.Entry
 	fmVersionSelect *widget.Select
-	statusLabel     *widget.Label
+	logLabel        *widget.Label
 	progressBar     *widget.ProgressBar
 	runButton       *widget.Button
 

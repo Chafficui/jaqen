@@ -45,7 +45,10 @@ func (g *JaqenGUI) runProcessing() {
 	g.runButton.SetText("Processing...")
 	g.runButton.Disable()
 	g.progressBar.Show()
-	g.statusLabel.SetText("Starting file processing...")
+	
+	if g.logger != nil {
+		g.logger.Println("Starting face mapping process...")
+	}
 
 	// Run processing in a goroutine to keep UI responsive
 	go g.processFiles()
@@ -67,11 +70,10 @@ func (g *JaqenGUI) processFiles() {
 	// Update progress
 	fyne.Do(func() {
 		g.progressBar.SetValue(0.1)
-		g.statusLabel.SetText("Reading configuration...")
 	})
 
 	if g.logger != nil {
-		g.logger.Printf("Reading configuration...")
+		g.logger.Println("Reading configuration...")
 	}
 
 	// Load config if exists
@@ -89,8 +91,11 @@ func (g *JaqenGUI) processFiles() {
 
 	fyne.Do(func() {
 		g.progressBar.SetValue(0.2)
-		g.statusLabel.SetText("Creating mapping...")
 	})
+	
+	if g.logger != nil {
+		g.logger.Println("Creating mapping...")
+	}
 
 	// Apply mapping overrides
 	if len(g.mappingOverrides) > 0 {
@@ -115,8 +120,11 @@ func (g *JaqenGUI) processFiles() {
 
 	fyne.Do(func() {
 		g.progressBar.SetValue(0.3)
-		g.statusLabel.SetText("Loading image pool...")
 	})
+	
+	if g.logger != nil {
+		g.logger.Println("Loading image pool...")
+	}
 
 	// Create image pool
 	imagePool, err := mapper.NewImagePool(g.imgDirEntry.Text)
@@ -129,8 +137,11 @@ func (g *JaqenGUI) processFiles() {
 
 	fyne.Do(func() {
 		g.progressBar.SetValue(0.4)
-		g.statusLabel.SetText("Processing players...")
 	})
+	
+	if g.logger != nil {
+		g.logger.Println("Processing players...")
+	}
 
 	// Get players
 	players, err := mapper.GetPlayers(g.rtfPathEntry.Text)
@@ -151,8 +162,11 @@ func (g *JaqenGUI) processFiles() {
 
 	fyne.Do(func() {
 		g.progressBar.SetValue(0.5)
-		g.statusLabel.SetText("Assigning faces...")
 	})
+	
+	if g.logger != nil {
+		g.logger.Println("Assigning faces to players...")
+	}
 
 	// Process each player
 	totalPlayers := len(players)
@@ -185,16 +199,26 @@ func (g *JaqenGUI) processFiles() {
 
 		// Update progress
 		progress := 0.5 + (float64(i+1)/float64(totalPlayers))*0.4
+		
+		// Log every 10% or so to avoid spam
+		if i%10 == 0 || i == totalPlayers-1 {
+			if g.logger != nil {
+				g.logger.Printf("Processing player %d of %d...", i+1, totalPlayers)
+			}
+		}
+		
 		fyne.Do(func() {
 			g.progressBar.SetValue(progress)
-			g.statusLabel.SetText(fmt.Sprintf("Processing player %d of %d...", i+1, totalPlayers))
 		})
 	}
 
 	fyne.Do(func() {
 		g.progressBar.SetValue(0.9)
-		g.statusLabel.SetText("Saving files...")
 	})
+	
+	if g.logger != nil {
+		g.logger.Println("Saving mapping files...")
+	}
 
 	// Save mapping
 	if err := mapping.Save(); err != nil {
@@ -211,9 +235,12 @@ func (g *JaqenGUI) processFiles() {
 		return
 	}
 
+	if g.logger != nil {
+		g.logger.Println("✅ Face mapping completed successfully!")
+	}
+	
 	fyne.Do(func() {
 		g.progressBar.SetValue(1.0)
-		g.statusLabel.SetText("Processing completed successfully!")
 		dialog.ShowInformation("Success", "Face mapping completed successfully!", g.window)
 	})
 }

@@ -1,13 +1,10 @@
 package gui
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"fyne.io/fyne/v2"
 
 	mapper "jaqen/pkgs"
 )
@@ -21,7 +18,9 @@ func (g *JaqenGUI) detectPathsFromImageFolder(imgPath string) {
 	// Setup logging to jaqen.log in the image directory
 	if err := g.setupLogger(imgPath); err != nil {
 		// Log error but don't fail the operation
-		fmt.Printf("Warning: Failed to setup logging: %v\n", err)
+		if g.logger != nil {
+			g.logger.Printf("Warning: Failed to setup logging: %v", err)
+		}
 	}
 
 	// Extract FM version from path
@@ -111,8 +110,7 @@ func (g *JaqenGUI) autoDistributeOnStartup() {
 
 	for _, fmDir := range fmDirs {
 		if err := mapper.DistributeViewsAndFilters(fmDir); err != nil {
-			// Log error but don't show to user - this is a background operation
-			fmt.Printf("Warning: Failed to distribute files to %s: %v\n", fmDir.BasePath, err)
+			// Log error
 			if g.logger != nil {
 				g.logger.Printf("Error distributing to %s: %v", fmDir.BasePath, err)
 			}
@@ -122,15 +120,9 @@ func (g *JaqenGUI) autoDistributeOnStartup() {
 	}
 
 	if len(fmDirs) > 0 {
-		fmt.Printf("Auto-distributed views/filters to %d FM installation(s)\n", len(fmDirs))
 		if g.logger != nil {
 			g.logger.Printf("Auto-distribution completed for %d FM installation(s)", len(fmDirs))
 		}
-		fyne.Do(func() {
-			if g.statusLabel != nil {
-				g.statusLabel.SetText(fmt.Sprintf("Auto-distributed views/filters to %d FM installation(s)", len(fmDirs)))
-			}
-		})
 	}
 }
 
@@ -226,17 +218,17 @@ func (g *JaqenGUI) autoDistributeViewsAndFilters(imgPath string) {
 		// Distribute views and filters
 		err = mapper.DistributeViewsAndFilters(fmDir)
 		if err != nil {
-			// Log error but don't show to user - this is a background operation
-			fmt.Printf("Warning: Failed to distribute views/filters: %v\n", err)
+			// Log error
+			if g.logger != nil {
+				g.logger.Printf("Warning: Failed to distribute views/filters: %v", err)
+			}
 			return
 		}
 
-		// Update status to show success
-		fyne.Do(func() {
-			if g.statusLabel != nil {
-				g.statusLabel.SetText(fmt.Sprintf("Views and filters distributed to FM directory: %s", fmDir.BasePath))
-			}
-		})
+		// Log success
+		if g.logger != nil {
+			g.logger.Printf("Views and filters distributed to FM directory: %s", fmDir.BasePath)
+		}
 	}()
 }
 
@@ -248,8 +240,7 @@ func (g *JaqenGUI) autoGenerateConfigXML(imgPath string) {
 		}
 		err := mapper.GenerateConfigXML(imgPath)
 		if err != nil {
-			// Log error but don't show to user - this is a background operation
-			fmt.Printf("Warning: Failed to generate config.xml: %v\n", err)
+			// Log error
 			if g.logger != nil {
 				g.logger.Printf("Error generating config.xml: %v", err)
 			}
@@ -259,11 +250,6 @@ func (g *JaqenGUI) autoGenerateConfigXML(imgPath string) {
 			g.logger.Printf("Successfully generated config.xml")
 		}
 
-		// Update status to show success
-		fyne.Do(func() {
-			if g.statusLabel != nil {
-				g.statusLabel.SetText(fmt.Sprintf("Generated config.xml in: %s", imgPath))
-			}
-		})
+		// Already logged above
 	}()
 }

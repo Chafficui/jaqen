@@ -76,9 +76,10 @@ func (g *JaqenGUI) createMainContent() *fyne.Container {
 	g.fmVersionSelect.SetSelected("2024")
 	g.fmVersionSelect.OnChanged = func(_ string) { g.autoSaveConfig() }
 
-	// Status and action
-	g.statusLabel = widget.NewLabel("Select an image folder to get started...")
-	g.statusLabel.Wrapping = fyne.TextWrapWord
+	// Create log display (will be in accordion)
+	g.logLabel = widget.NewLabel("System logs will appear here...")
+	g.logLabel.Wrapping = fyne.TextWrapBreak
+	g.logLabel.TextStyle = fyne.TextStyle{Monospace: true}
 
 	g.progressBar = widget.NewProgressBar()
 	g.progressBar.Hide()
@@ -132,9 +133,18 @@ func (g *JaqenGUI) createMainContent() *fyne.Container {
 		g.createMappingOverrideSection(),
 	))
 
+	// Create collapsible log section using Accordion
+	logScroll := container.NewScroll(g.logLabel)
+	logScroll.SetMinSize(fyne.NewSize(0, 250))
+
+	logAccordion := widget.NewAccordion(
+		widget.NewAccordionItem("📋 System Log (click to expand)", logScroll),
+	)
+
 	// Create action section with better styling
 	actionCard := widget.NewCard("Actions", "", container.NewVBox(
-		g.statusLabel,
+		logAccordion,
+		widget.NewSeparator(),
 		g.progressBar,
 		container.NewCenter(g.runButton),
 	))
